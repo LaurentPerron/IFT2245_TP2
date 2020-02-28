@@ -1,6 +1,6 @@
 /**
- * prenom1 nom1 mat1
- * prenom2 nom2 mat2
+ * William Bach
+ * Laurent Perron 1052137
  */
 
 #include <stdio.h>
@@ -49,6 +49,7 @@ typedef int error_code;
 #define HAS_NO_ERROR(err) ((err) >= 0)
 #define NO_ERROR 0
 #define CAST(type, src)((type)(src))
+#define ERROR (-1)
 
 typedef struct {
     char **commands;
@@ -69,6 +70,40 @@ typedef struct {
 // Configuration globale
 configuration *conf = NULL;
 
+error_code readLine(char **out) {
+    size_t size = 10;                       // size of the char array
+    char *line = malloc(sizeof(char) * size);       // initialize a ten-char line
+    if (line == NULL) return ERROR;   // if we can't, terminate because of a memory issue
+
+    for (int at = 0; 1; at++) {
+        if (at >= size) {
+            size = 2 * size;
+            char *tempPtr = realloc(line, size * sizeof(char));
+            if (tempPtr == NULL) {
+                free(line);
+                return ERROR;
+            }
+
+            line = tempPtr;
+        }
+        int tempCh = getchar();
+
+        if (tempCh == EOF) { // if the next char is EOF, terminate
+            free(line);
+            return ERROR;
+        }
+        char ch = (char) tempCh;
+
+        if (ch == '\n') {        // if we get a newline
+            line[at] = '\0';    // finish the line with return 0
+            break;
+        }
+        line[at] = ch; // sets ch at the current index and increments the index
+    }
+    out[0] = line;
+    return 0;
+}
+
 /**
  * Cette fonction analyse la première ligne et remplie la configuration
  * @param line la première ligne du shell
@@ -76,6 +111,11 @@ configuration *conf = NULL;
  * @return un code d'erreur (ou rien si correct)
  */
 error_code parse_first_line(char *line) {
+    return NO_ERROR;
+}
+
+error_code parse_line(char *line, command *out) {
+
     return NO_ERROR;
 }
 
