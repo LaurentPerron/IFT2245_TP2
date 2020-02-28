@@ -70,6 +70,11 @@ typedef struct {
 // Configuration globale
 configuration *conf = NULL;
 
+/**
+ * Lis une ligne du shell.
+ * @param out variable dans laquelle la ligne est enregistrée.
+ * @return erreur ou 0.
+ */
 error_code readLine(char **out) {
     size_t size = 10;                       // size of the char array
     char *line = malloc(sizeof(char) * size);       // initialize a ten-char line
