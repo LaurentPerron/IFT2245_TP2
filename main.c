@@ -44,12 +44,17 @@ struct banker_customer_struct {
     int depth;
 };
 
+void print_command_chain(command_head head){
+
+}
+
 typedef int error_code;
 #define HAS_ERROR(err) ((err) < 0)
 #define HAS_NO_ERROR(err) ((err) >= 0)
 #define NO_ERROR 0
 #define CAST(type, src)((type)(src))
 #define ERROR (-1)
+#define NULL_TERMINATOR '\0'
 
 typedef struct {
     char **commands;
@@ -95,7 +100,7 @@ error_code readLine(char **out) {
         char ch = (char) tempCh;
 
         if (ch == '\n') {        // if we get a newline
-            line[at] = '\0';    // finish the line with return 0
+            line[at] = NULL_TERMINATOR;    // finish the line with return 0
             break;
         }
         line[at] = ch; // sets ch at the current index and increments the index
@@ -103,7 +108,28 @@ error_code readLine(char **out) {
     out[0] = line;
     return 0;
 }
+void freeStringArray(char **arr) {
+    if (arr != NULL) {
+        for (int i = 0; arr[i] != NULL; i++) {
+            free(arr[i]);
+        }
+    }
+    free(arr);
+}
 
+struct command *freeAndNext(command *current) {
+    if (current == NULL) return current;
+
+    struct command *next = current->next;
+    freeStringArray(current->call);
+    free(current);
+    return next;
+}
+
+void freeCommands(command *head) {
+    struct command *current = head;
+    while (current != NULL) current = freeAndNext(current);
+}
 /**
  * Cette fonction analyse la première ligne et remplie la configuration
  * @param line la première ligne du shell
@@ -111,11 +137,6 @@ error_code readLine(char **out) {
  * @return un code d'erreur (ou rien si correct)
  */
 error_code parse_first_line(char *line) {
-    return NO_ERROR;
-}
-
-error_code parse_line(char *line, command *out) {
-
     return NO_ERROR;
 }
 
@@ -187,6 +208,159 @@ error_code evaluate_whole_chain(command_head *head);
  * @return un code d'erreur
  */
 error_code create_command_chain(const char *line, command_head **result) {
+    char **call = NULL;
+    char *wordPtr = NULL;
+    command *c = NULL;
+
+    int currentCallSize = 0;
+    command_head *h = NULL;
+    command *current = NULL;
+    command *head = NULL;
+    h = (command_head *)malloc(sizeof(command_head));
+    // TODO Regarder si == -1
+
+    int escaped = 0;
+
+    for (int index = 0; line[index] != NULL_TERMINATOR; index++) {
+        int nextSpace = index;
+        while (1) {
+            if (!escaped) {
+                if (line[nextSpace] == ' ' || NULL_TERMINATOR == line[nextSpace]) {
+                    break;
+                }
+            }
+            if (line[nextSpace] == '(') escaped = 1;
+            if (line[nextSpace] == ')') escaped = 0;
+            nextSpace++;
+        }
+
+        wordPtr = malloc(sizeof(char) * (nextSpace - index + 1));
+        if (wordPtr == NULL) goto error;
+
+        int i = 0;
+        for (; i < nextSpace - index; i++) wordPtr[i] = line[i + index];
+        wordPtr[i] = NULL_TERMINATOR;
+
+        operator operator = BIDON;
+        if (strcmp(wordPtr, "||") == 0) operator = OR;
+        if (strcmp(wordPtr, "&&") == 0) operator = AND;
+        if (strcmp(wordPtr, "&") == 0) operator = ALSO;
+        if (operator != ALSO && line[nextSpace] == NULL_TERMINATOR) operator = NONE;
+
+        if(operator == OR || operator == AND || operator == ALSO) free(wordPtr);
+
+        if (operator == BIDON || operator == NONE) {
+            if (call == NULL) {
+                currentCallSize = 1;
+                call = malloc(sizeof(char *) * 2);
+                if (call == NULL) goto error;
+                call[1] = NULL;
+            } else {
+                currentCallSize++;
+                char **tempPtr = realloc(call, (currentCallSize + 1) * sizeof(char *));
+                if (tempPtr == NULL) goto error;
+
+                call = tempPtr;
+                call[currentCallSize] = NULL;
+            }
+
+            call[currentCallSize - 1] = wordPtr;
+        }
+
+        if (operator != BIDON) {
+            c = malloc(sizeof(command));
+            if (c == NULL) goto error;
+
+            if (head == NULL) head = c;
+            else current->next = c;
+
+            c->count = 1;
+            if (call[0][strlen(call[0]) - 1] == ')') {
+                char *command = call[0];
+
+                unsigned long command_len = strlen(command); //rn et fn ici
+
+                int paren_pos = 0;
+                for (; command[paren_pos] != '('; paren_pos++);
+
+                wordPtr = malloc(paren_pos * sizeof(char));
+                if(wordPtr == NULL) goto error;
+
+                for (int j = 0; j < paren_pos; j++) wordPtr[j] = command[j + 1];
+                wordPtr[paren_pos - 1] = NULL_TERMINATOR;
+
+                int nb = atoi(wordPtr); // NOLINT(cert-err34-c)
+                c->count = ('r' == command[0]) ? nb : -nb;
+
+                free(wordPtr);
+                if (NULL == (wordPtr = malloc(sizeof(char) * (command_len - paren_pos - 1)))) {
+                    goto error;
+                }
+
+                memcpy(wordPtr, &command[paren_pos + 1], command_len - paren_pos - 2);
+                wordPtr[command_len - paren_pos - 2] = NULL_TERMINATOR;
+                free(command);
+
+                unsigned long resized_len = strlen(wordPtr);
+
+                int space_nb = 0;
+                for (int j = 0; j < resized_len; j++) {
+                    space_nb += wordPtr[j] == ' ';
+                }
+
+                char **temp;
+                if (NULL == (temp = realloc(call, sizeof(char *) * (space_nb + 2)))) {
+                    goto error;
+                } else {
+                    call = temp;
+                    call[space_nb + 1] = NULL;
+                }
+
+                int copy_index = 0;
+                char *token = strtok(wordPtr, " ");
+                while (token != NULL) {
+                    char *arg = malloc(sizeof(char) * (strlen(token)+1));
+                    /* if (NULL == (arg )) {
+                         goto error;
+                     }*/
+
+                    strcpy(arg, token);
+                    call[copy_index] = arg;
+
+                    token = strtok(NULL, " ");
+
+                    copy_index++;
+                }
+
+                free(wordPtr);
+            }
+
+            c->call = call;
+
+            c->next = NULL;
+            c->op = operator;
+            h->background = 0;
+            if (operator == ALSO) {
+                c->op = NONE;
+                h->background = 1;
+            }
+            current = c;
+            call = NULL;
+        }
+        if (line[nextSpace] == NULL_TERMINATOR) break;
+        index = nextSpace;
+    }
+    h->command = head;
+    result[0] = h;
+    return 0;
+
+    error:
+    free(wordPtr);
+    free(line);
+    freeStringArray(call);
+    freeAndNext(c);
+    freeCommands(head);
+    return ERROR;
     return NO_ERROR;
 }
 
@@ -329,4 +503,7 @@ int main(void) {
     } else {
         printf("Error while executing the shell.");
     }
+    char * line  = "r10(echo aa) && f10(echo bb) || echo cc &";
+    command_head *h;
+    create_command_chain(line, &h);
 }
