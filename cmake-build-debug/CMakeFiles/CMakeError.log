@@ -1,24 +1,24 @@
 Determining if the pthread_create exist failed with the following output:
-Change Dir: /mnt/c/Users/Laurent/Documents/IFT2245/TP2/cmake-build-debug/CMakeFiles/CMakeTmp
+Change Dir: /mnt/c/Users/Laurent/Documents/ift2245/IFT2245_TP2/cmake-build-debug/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_7744d/fast"
-/usr/bin/make -f CMakeFiles/cmTC_7744d.dir/build.make CMakeFiles/cmTC_7744d.dir/build
-make[1]: Entering directory '/mnt/c/Users/Laurent/Documents/IFT2245/TP2/cmake-build-debug/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_7744d.dir/CheckSymbolExists.c.o
-/usr/bin/cc   -std=gnu99 -o CMakeFiles/cmTC_7744d.dir/CheckSymbolExists.c.o   -c /mnt/c/Users/Laurent/Documents/IFT2245/TP2/cmake-build-debug/CMakeFiles/CMakeTmp/CheckSymbolExists.c
-Linking C executable cmTC_7744d
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7744d.dir/link.txt --verbose=1
-/usr/bin/cc      CMakeFiles/cmTC_7744d.dir/CheckSymbolExists.c.o  -o cmTC_7744d 
-CMakeFiles/cmTC_7744d.dir/CheckSymbolExists.c.o: In function `main':
+Run Build Command:"/usr/bin/make" "cmTC_449cf/fast"
+/usr/bin/make -f CMakeFiles/cmTC_449cf.dir/build.make CMakeFiles/cmTC_449cf.dir/build
+make[1]: Entering directory '/mnt/c/Users/Laurent/Documents/ift2245/IFT2245_TP2/cmake-build-debug/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_449cf.dir/CheckSymbolExists.c.o
+/usr/bin/cc   -std=gnu99 -o CMakeFiles/cmTC_449cf.dir/CheckSymbolExists.c.o   -c /mnt/c/Users/Laurent/Documents/ift2245/IFT2245_TP2/cmake-build-debug/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_449cf
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_449cf.dir/link.txt --verbose=1
+/usr/bin/cc      CMakeFiles/cmTC_449cf.dir/CheckSymbolExists.c.o  -o cmTC_449cf 
+CMakeFiles/cmTC_449cf.dir/CheckSymbolExists.c.o: In function `main':
 CheckSymbolExists.c:(.text+0x1b): undefined reference to `pthread_create'
 collect2: error: ld returned 1 exit status
-CMakeFiles/cmTC_7744d.dir/build.make:97: recipe for target 'cmTC_7744d' failed
-make[1]: *** [cmTC_7744d] Error 1
-make[1]: Leaving directory '/mnt/c/Users/Laurent/Documents/IFT2245/TP2/cmake-build-debug/CMakeFiles/CMakeTmp'
-Makefile:126: recipe for target 'cmTC_7744d/fast' failed
-make: *** [cmTC_7744d/fast] Error 2
+CMakeFiles/cmTC_449cf.dir/build.make:97: recipe for target 'cmTC_449cf' failed
+make[1]: *** [cmTC_449cf] Error 1
+make[1]: Leaving directory '/mnt/c/Users/Laurent/Documents/ift2245/IFT2245_TP2/cmake-build-debug/CMakeFiles/CMakeTmp'
+Makefile:126: recipe for target 'cmTC_449cf/fast' failed
+make: *** [cmTC_449cf/fast] Error 2
 
-File /mnt/c/Users/Laurent/Documents/IFT2245/TP2/cmake-build-debug/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+File /mnt/c/Users/Laurent/Documents/ift2245/IFT2245_TP2/cmake-build-debug/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
 /* */
 #include <pthread.h>
 
@@ -34,22 +34,22 @@ int main(int argc, char** argv)
 }
 
 Determining if the function pthread_create exists in the pthreads failed with the following output:
-Change Dir: /mnt/c/Users/Laurent/Documents/IFT2245/TP2/cmake-build-debug/CMakeFiles/CMakeTmp
+Change Dir: /mnt/c/Users/Laurent/Documents/ift2245/IFT2245_TP2/cmake-build-debug/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_20fe3/fast"
-/usr/bin/make -f CMakeFiles/cmTC_20fe3.dir/build.make CMakeFiles/cmTC_20fe3.dir/build
-make[1]: Entering directory '/mnt/c/Users/Laurent/Documents/IFT2245/TP2/cmake-build-debug/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_20fe3.dir/CheckFunctionExists.c.o
-/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create   -std=gnu99 -o CMakeFiles/cmTC_20fe3.dir/CheckFunctionExists.c.o   -c /usr/share/cmake-3.10/Modules/CheckFunctionExists.c
-Linking C executable cmTC_20fe3
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_20fe3.dir/link.txt --verbose=1
-/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create    CMakeFiles/cmTC_20fe3.dir/CheckFunctionExists.c.o  -o cmTC_20fe3 -lpthreads 
+Run Build Command:"/usr/bin/make" "cmTC_4cde6/fast"
+/usr/bin/make -f CMakeFiles/cmTC_4cde6.dir/build.make CMakeFiles/cmTC_4cde6.dir/build
+make[1]: Entering directory '/mnt/c/Users/Laurent/Documents/ift2245/IFT2245_TP2/cmake-build-debug/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_4cde6.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create   -std=gnu99 -o CMakeFiles/cmTC_4cde6.dir/CheckFunctionExists.c.o   -c /usr/share/cmake-3.10/Modules/CheckFunctionExists.c
+Linking C executable cmTC_4cde6
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_4cde6.dir/link.txt --verbose=1
+/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create    CMakeFiles/cmTC_4cde6.dir/CheckFunctionExists.c.o  -o cmTC_4cde6 -lpthreads 
 /usr/bin/ld: cannot find -lpthreads
 collect2: error: ld returned 1 exit status
-CMakeFiles/cmTC_20fe3.dir/build.make:97: recipe for target 'cmTC_20fe3' failed
-make[1]: *** [cmTC_20fe3] Error 1
-make[1]: Leaving directory '/mnt/c/Users/Laurent/Documents/IFT2245/TP2/cmake-build-debug/CMakeFiles/CMakeTmp'
-Makefile:126: recipe for target 'cmTC_20fe3/fast' failed
-make: *** [cmTC_20fe3/fast] Error 2
+CMakeFiles/cmTC_4cde6.dir/build.make:97: recipe for target 'cmTC_4cde6' failed
+make[1]: *** [cmTC_4cde6] Error 1
+make[1]: Leaving directory '/mnt/c/Users/Laurent/Documents/ift2245/IFT2245_TP2/cmake-build-debug/CMakeFiles/CMakeTmp'
+Makefile:126: recipe for target 'cmTC_4cde6/fast' failed
+make: *** [cmTC_4cde6/fast] Error 2
 
 

@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <memory.h>
 #include <pthread.h>
+#include <unistd.h>
+#include <wait.h>
 
 typedef unsigned char bool;
 typedef struct command_struct command;
@@ -488,12 +490,107 @@ error_code init_shell() {
 void close_shell() {
 }
 
+int callCommand(command *current) {
+    if (current->count <= 0) return 1;
+    if (strcmp(current->call[0], "exit") == 0) return 7;
+
+    int exitCode = -1;     // the exit code of the child
+    pid_t pid = 0;
+    for (int i = 0; i < current->count; i++) {
+        pid = fork();
+        if (pid < 0) {        // forking failed
+            return pid;
+        } else if (pid == 0) {
+            // -----------------------------------------------------
+            //                    CHILD PROCESS
+            // -----------------------------------------------------
+            char *cmd_name = current->call[0];
+            execvp(cmd_name, current->call);    // execvp searches for command[0] in PATH, and then calls command
+
+            printf("bash: %s: command not found\n", cmd_name);    // if we reach this, exec couldn't find the command
+
+            exit(49);    // and then we exit with 2, signaling an error. This also frees ressources
+        }
+    }
+
+    // PID is correct
+    waitpid(pid, &exitCode, 0); // Wait for the child process to exit.
+    int x = WIFEXITED(exitCode);
+    if (!x) return 0;
+
+    x = WEXITSTATUS(exitCode);
+    if (x != 0) return 0;
+    return 1;
+}
+
+error_code callCommands(command *current) {
+    if (current == NULL || current->call == NULL) return 0;
+
+    int ret = callCommand(current);
+    if (ret == 7) return 7;
+    if (ret == -1) return ERROR;
+
+    operator op = current->op;
+    command *next = current->next;
+
+    switch (op) {
+        default:
+        case NONE:
+        case BIDON:
+            return 0;
+        case AND:
+            if (ret) return callCommands(next);
+            return 0;
+        case OR:
+            if (ret) {
+                next = next->next;
+                while (next != NULL && (next->op == OR || next->op == NONE)) next = next->next;
+                if (next != NULL && next->op == AND) next = next->next;
+            }
+            return callCommands(next);
+    }
+}
 /**
  * Utilisez cette fonction pour y placer la boucle d'exécution (REPL)
  * de votre shell. Vous devez aussi y créer le thread banquier
  */
 void run_shell() {
+    int exit_code = 0;
+    char *line;
+    command_head *head;
+    command *f;
+    while (1) {
+        if (HAS_ERROR(readLine(&line))) goto top;
+        if (strlen(line) == 0) continue;
 
+        if (HAS_ERROR(create_command_chain(line, &head))) goto bot;
+        free(line);
+        f = head->command;
+        if (head->background) {
+            pid_t pid = fork();
+            if (pid == -1) {        // forking failed
+                freeCommands(f);
+                free(head);
+            } else if (pid == 0) {    // child
+                if (HAS_ERROR(exit_code = callCommands(f))) goto toptop;
+                exit(0);    // and then we exit with 2, signaling an error
+            }
+
+        } else exit_code = callCommands(f);
+
+        freeCommands(f);
+        free(head);
+        if(exit_code == 7) exit(0);
+    }
+
+    toptop:
+    freeCommands(f);
+    free(head);
+    bot:
+    free(line);
+    top:
+    printf("An error has occured");
+    exit(-1);
 }
 
 /**

@@ -1,4 +1,4 @@
-/usr/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - Unix Makefiles" /mnt/c/Users/Laurent/Documents/IFT2245/TP2
+/usr/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - Unix Makefiles" /mnt/c/Users/Laurent/Documents/ift2245/IFT2245_TP2
 -- The C compiler identification is GNU 7.4.0
 -- Check for working C compiler: /usr/bin/cc
 -- Check for working C compiler: /usr/bin/cc -- works
@@ -17,4 +17,4 @@
 -- Found Threads: TRUE  
 -- Configuring done
 -- Generating done
--- Build files have been written to: /mnt/c/Users/Laurent/Documents/IFT2245/TP2/cmake-build-debug
+-- Build files have been written to: /mnt/c/Users/Laurent/Documents/ift2245/IFT2245_TP2/cmake-build-debug
