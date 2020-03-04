@@ -232,7 +232,7 @@ error_code create_command_chain(const char *line, command_head **result) {
         int nextSpace = index;
         while (1) {
             if (!escaped) {
-                if (line[nextSpace] == ' ' || NULL_TERMINATOR == line[nextSpace]) {
+                if (line[nextSpace] == ' ' || line[nextSpace] == NULL_TERMINATOR) {
                     break;
                 }
             }
@@ -287,12 +287,13 @@ error_code create_command_chain(const char *line, command_head **result) {
 
                 unsigned long command_len = strlen(command); //rn et fn ici
 
-                int paren_pos = 0;
-                for (; command[paren_pos] != '('; paren_pos++);
+
+                for (int paren_pos = 0; command[paren_pos] != '('; paren_pos++);
 
                 wordPtr = malloc(paren_pos * sizeof(char));
                 if(wordPtr == NULL) goto error;
 
+                //isoler le nombre N de rN() et fN() dans wordPtr
                 for (int j = 0; j < paren_pos; j++) wordPtr[j] = command[j + 1];
                 wordPtr[paren_pos - 1] = NULL_TERMINATOR;
 
