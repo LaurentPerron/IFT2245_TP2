@@ -115,6 +115,103 @@ error_code readLine(char **out) {
     out[0] = line;
     return 0;
 }
+
+/**
+ * Cette fonction analyse la première ligne et remplie la configuration
+ * @param line la première ligne du shell
+ * @param conf pointeur vers le pointeur de la configuration
+ * @return un code d'erreur (ou rien si correct)
+ */
+error_code parse_first_line(char *line, configuration *conf) {
+    char *commandPtr = NULL;
+    char *command_caps = NULL;
+    char *all_caps = NULL;
+
+    //on trouve les commandes à limiter
+    int next& = 0;
+    while (1) {
+        if (line[next&] == '&') break;
+        next&++;
+    }
+    commandPtr = malloc(sizeof(char) * (next& + 1)); //nom des commandes à limiter
+    if(commandPtr == NULL) goto error;
+    for(int i = 0; i < next&; i++) commandPtr[i] = line[i];
+
+    //on place les commandes dans la configuration
+    char *token = strtok(commandPtr, ",");
+    i = 0;
+    while(token != NULL) {
+        config->commands[i] = token;
+        i++;
+        token = strtok(NULL, ",");
+    }
+
+    //on trouve la limitation des commandes
+    int new_next& = next& + 1;
+    while(1) {
+        if(line[new_next&] == '&') break;
+        new_next&++;
+    }
+    command_caps = malloc(sizeof(int) * (new_next& - next& + 1)); // capacité des commandes
+    if(command_caps == NULL) goto error;
+    for(int j = 0; j < new_next& - next&; j++) command_caps[j] = line[j + next&];
+
+    //on place les capacités dans la configuration
+    char *token2 = strtok(command_caps, ",");
+    j = 0;
+    int nb = 0;
+    while(token2 != NULL) {
+        nb = atoi(token2);
+        config->command_caps[j] = nb;
+        j++;
+        token2 = strtok(NULL, ",");
+    }
+
+    //on trouve les autres capacités
+    int line_length = strlen(line);
+
+    all_caps = malloc(sizeof(int) * (line_length - new_next&));
+    if(all_caps == NULL) goto error;
+    for(int k = new_next& + 1; k < line_length; k++) all_caps[k] = line[k];
+    //TODO null_terminator included?
+
+    //on place les autres capacités dans la configuration
+    char *token3 = strtok(all_caps, "&");
+    k = 0;
+    int loop = 0;
+    while(token3 != NULL) {
+        loop++;
+        nb = atoi(token3);
+        switch(loop) {
+            case 1: config->file_system_cap = nb;
+                    break;
+
+            case 2: config->network_cap = nb;
+                    break;
+
+            case 3: config->system_cap = nb;
+                    break;
+
+            case 4: config-> any_cap = nb;
+                    break;
+
+            default: goto error;
+        }
+        token3 = strtok(NULL, "&")
+    }
+
+    return NO_ERROR;
+
+    error:
+    free(commandPtr);
+    free(command_caps);
+    freeStringArray(config->commands);
+    //TODO: free config->command_caps
+    free(config);
+    return ERROR;
+
+}
+
 void freeStringArray(char **arr) {
     if (arr != NULL) {
         for (int i = 0; arr[i] != NULL; i++) {
@@ -136,15 +233,6 @@ struct command *freeAndNext(command *current) {
 void freeCommands(command *head) {
     struct command *current = head;
     while (current != NULL) current = freeAndNext(current);
-}
-/**
- * Cette fonction analyse la première ligne et remplie la configuration
- * @param line la première ligne du shell
- * @param conf pointeur vers le pointeur de la configuration
- * @return un code d'erreur (ou rien si correct)
- */
-error_code parse_first_line(char *line) {
-    return NO_ERROR;
 }
 
 #define FS_CMDS_COUNT 10
