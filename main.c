@@ -140,11 +140,14 @@ error_code parse_first_line(char *line, configuration *conf) {
     //on place les commandes dans la configuration
     char *token = strtok(commandPtr, ",");
     i = 0;
+    int command_count = 0;
     while(token != NULL) {
-        config->commands[i] = token;
+        conf->commands[i] = token;
+        command_count++;
         i++;
         token = strtok(NULL, ",");
     }
+    conf->command_count = command_count;
 
     //on trouve la limitation des commandes
     int new_next& = next& + 1;
@@ -162,7 +165,7 @@ error_code parse_first_line(char *line, configuration *conf) {
     int nb = 0;
     while(token2 != NULL) {
         nb = atoi(token2);
-        config->command_caps[j] = nb;
+        conf->command_caps[j] = nb;
         j++;
         token2 = strtok(NULL, ",");
     }
@@ -183,16 +186,16 @@ error_code parse_first_line(char *line, configuration *conf) {
         loop++;
         nb = atoi(token3);
         switch(loop) {
-            case 1: config->file_system_cap = nb;
+            case 1: conf->file_system_cap = nb;
                     break;
 
-            case 2: config->network_cap = nb;
+            case 2: conf->network_cap = nb;
                     break;
 
-            case 3: config->system_cap = nb;
+            case 3: conf->system_cap = nb;
                     break;
 
-            case 4: config-> any_cap = nb;
+            case 4: conf-> any_cap = nb;
                     break;
 
             default: goto error;
@@ -205,9 +208,9 @@ error_code parse_first_line(char *line, configuration *conf) {
     error:
     free(commandPtr);
     free(command_caps);
-    freeStringArray(config->commands);
-    //TODO: free config->command_caps
-    free(config);
+    freeStringArray(conf->commands);
+    //TODO: free conf->command_caps
+    free(conf);
     return ERROR;
 
 }
