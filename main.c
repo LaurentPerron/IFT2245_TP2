@@ -67,7 +67,6 @@ typedef struct {
     int network_cap;
     int system_cap;
     int any_cap;
-    int no_banquers;
 } configuration;
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -116,75 +115,131 @@ error_code readLine(char **out) {
     return 0;
 }
 
+void freeStringArray(char **arr) {
+    if (arr != NULL) {
+        for (int i = 0; arr[i] != NULL; i++) {
+            free(arr[i]);
+        }
+    }
+    free(arr);
+}
+
+void freeConfiguration(configuration *config) {
+    while(1) {
+        if (config == NULL) break;
+        freeStringArray(config->commands);
+        free(conf->command_caps);
+        free(config);
+        break;
+    }
+}
+
 /**
  * Cette fonction analyse la première ligne et remplie la configuration
  * @param line la première ligne du shell
- * @param conf pointeur vers le pointeur de la configuration
  * @return un code d'erreur (ou rien si correct)
  */
-error_code parse_first_line(char *line, configuration *conf) {
-    char *commandPtr = NULL;
+error_code parse_first_line(char *line) {
+    char *commands = NULL;
+    char **commands_conf = NULL;
     char *command_caps = NULL;
+    int *command_caps_conf = NULL;
     char *all_caps = NULL;
+    conf = malloc(sizeof(configuration));
+
 
     //on trouve les commandes à limiter
-    int next& = 0;
+    int nextAnd = 0;
     while (1) {
-        if (line[next&] == '&') break;
-        next&++;
+        if (line[nextAnd] == '&') break;
+        nextAnd++;
     }
-    commandPtr = malloc(sizeof(char) * (next& + 1)); //nom des commandes à limiter
-    if(commandPtr == NULL) goto error;
-    for(int i = 0; i < next&; i++) commandPtr[i] = line[i];
+    commands = malloc(sizeof(char) * (nextAnd + 2)); //nom des commandes à limiter
+    if(commands == NULL) goto error;
+
+    int i = 0;
+    for(; i < nextAnd; i++) commands[i] = line[i];
+    commands[i] = NULL_TERMINATOR;
 
     //on place les commandes dans la configuration
-    char *token = strtok(commandPtr, ",");
+    commands_conf = malloc(sizeof(char) * strlen(commands));
+    if (commands_conf == NULL) goto error;
+
     i = 0;
     int command_count = 0;
+    char *token = strtok(commands, ",");
     while(token != NULL) {
-        conf->commands[i] = token;
+        char *arg = malloc(sizeof(char) * (strlen(token) + 1));
+        strcpy(arg, token);
+
+        commands_conf[i] = arg;
         command_count++;
+
         i++;
         token = strtok(NULL, ",");
     }
+    conf->commands = commands_conf;
     conf->command_count = command_count;
+    free(commands);
+    freeStringArray(commands_conf);
+
 
     //on trouve la limitation des commandes
-    int new_next& = next& + 1;
+    int new_nextAnd = nextAnd + 1;
     while(1) {
-        if(line[new_next&] == '&') break;
-        new_next&++;
+        if(line[new_nextAnd] == '&') break;
+        new_nextAnd++;
     }
-    command_caps = malloc(sizeof(int) * (new_next& - next& + 1)); // capacité des commandes
+    command_caps = malloc(sizeof(int) * (new_nextAnd - nextAnd + 1)); // capacité des commandes
     if(command_caps == NULL) goto error;
-    for(int j = 0; j < new_next& - next&; j++) command_caps[j] = line[j + next&];
+
+    int j = 0;
+    for(; j < new_nextAnd - nextAnd - 1; j++) command_caps[j] = line[j + nextAnd + 1];
+    command_caps[j] = NULL_TERMINATOR;
 
     //on place les capacités dans la configuration
-    char *token2 = strtok(command_caps, ",");
+    command_caps_conf = malloc(sizeof(int) * strlen(command_caps));
+    if (command_caps_conf == NULL) goto error;
+
     j = 0;
     int nb = 0;
+    int ressources_count = 0;
+    char *token2 = strtok(command_caps, ",");
     while(token2 != NULL) {
-        nb = atoi(token2);
-        conf->command_caps[j] = nb;
+        char *arg = malloc(sizeof(int) * strlen(token2));
+        strcpy(arg, token2);
+
+        nb = atoi(arg);
+        command_caps_conf[j] = nb;
+
         j++;
+        ressources_count++;
         token2 = strtok(NULL, ",");
     }
+    conf->command_caps = command_caps_conf;
+    conf->ressources_count = ressources_count;
+    free(command_caps);
+    free(command_caps_conf);
+
 
     //on trouve les autres capacités
     int line_length = strlen(line);
-
-    all_caps = malloc(sizeof(int) * (line_length - new_next&));
+    all_caps = malloc(sizeof(int) * (line_length - new_nextAnd));
     if(all_caps == NULL) goto error;
-    for(int k = new_next& + 1; k < line_length; k++) all_caps[k] = line[k];
-    //TODO null_terminator included?
+
+    int k = new_nextAnd + 1;
+    for(; k < line_length; k++) all_caps[k-new_nextAnd-1] = line[k];
+    all_caps[k] = NULL_TERMINATOR;
 
     //on place les autres capacités dans la configuration
     char *token3 = strtok(all_caps, "&");
-    k = 0;
     int loop = 0;
     while(token3 != NULL) {
+        char *arg = malloc(sizeof(int) * strlen(token3));
+        strcpy(arg, token3);
+
+        nb = atoi(arg);
         loop++;
-        nb = atoi(token3);
         switch(loop) {
             case 1: conf->file_system_cap = nb;
                     break;
@@ -200,41 +255,31 @@ error_code parse_first_line(char *line, configuration *conf) {
 
             default: goto error;
         }
-        token3 = strtok(NULL, "&")
+        token3 = strtok(NULL, "&");
     }
-
     return NO_ERROR;
 
     error:
-    free(commandPtr);
+    free(commands);
+    freeStringArray(commands_conf);
     free(command_caps);
-    freeStringArray(conf->commands);
-    //TODO: free conf->command_caps
-    free(conf);
+    free(command_caps_conf);
+    free(all_caps);
+    freeConfiguration(conf);
     return ERROR;
-
 }
 
-void freeStringArray(char **arr) {
-    if (arr != NULL) {
-        for (int i = 0; arr[i] != NULL; i++) {
-            free(arr[i]);
-        }
-    }
-    free(arr);
-}
-
-struct command *freeAndNext(command *current) {
+command *freeAndNext(command *current) {
     if (current == NULL) return current;
 
-    struct command *next = current->next;
+    command *next = current->next;
     freeStringArray(current->call);
     free(current);
     return next;
 }
 
 void freeCommands(command *head) {
-    struct command *current = head;
+    command *current = head;
     while (current != NULL) current = freeAndNext(current);
 }
 
@@ -300,12 +345,11 @@ error_code evaluate_whole_chain(command_head *head);
 
 /**
  * Créer une chaîne de commande qui correspond à une ligne de commandes
- * @param config la configuration
  * @param line la ligne de texte à parser
  * @param result le résultat de la chaîne de commande
  * @return un code d'erreur
  */
-error_code create_command_chain(const char *line, command_head **result) {
+error_code create_command_chain(char *line, command_head **result) {
     char **call = NULL;
     char *wordPtr = NULL;
     command *c = NULL;
@@ -378,8 +422,8 @@ error_code create_command_chain(const char *line, command_head **result) {
 
                 unsigned long command_len = strlen(command); //rn et fn ici
 
-
-                for (int paren_pos = 0; command[paren_pos] != '('; paren_pos++);
+                int paren_pos = 0;
+                for (; command[paren_pos] != '('; paren_pos++);
 
                 wordPtr = malloc(paren_pos * sizeof(char));
                 if(wordPtr == NULL) goto error;
@@ -651,8 +695,18 @@ void run_shell() {
     char *line;
     command_head *head;
     command *f;
-    while (1) {
+
+    //initialisation et configuration
+    while(1) {
         if (HAS_ERROR(readLine(&line))) goto top;
+        if (strlen(line) == 0) continue;
+        if(HAS_ERROR(parse_first_line(line))) goto bot;
+        free(line);
+        break;
+    }
+
+    while (1) {
+        if (HAS_ERROR(readLine(&line))) goto bot;
         if (strlen(line) == 0) continue;
 
         if (HAS_ERROR(create_command_chain(line, &head))) goto bot;
