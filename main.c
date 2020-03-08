@@ -379,6 +379,7 @@ error_code resource_no(char *res_name) {
  */
 int resource_count(int resource_no) {
 
+    //la catégorie est déjà prédéfinie
     switch(resource_no) {
         case FS_CMD_TYPE:  return conf->file_system_cap;
 
@@ -393,8 +394,9 @@ int resource_count(int resource_no) {
     int cat_count = 0;
     while (conf->commands[cat_count][0] != NULL_TERMINATOR) cat_count++;
 
-    //ressource définie à l'initialisation?
+    //catégorie définie à l'initialisation?
     if (resource_no > 2 && resource_no < cat_count + 3) return conf->command_caps[resource_no-3];
+    //other?
     else if (resource_no == cat_count + 3) return conf->any_cap;
     else return ERROR;
 
