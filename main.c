@@ -178,6 +178,7 @@ error_code parse_first_line(char *line) {
         i++;
         token = strtok(NULL, ",");
     }
+    commands_conf[command_count] = NULL_TERMINATOR;
     conf->commands = commands_conf;
     conf->command_count = command_count;
     free(commands);
@@ -217,7 +218,7 @@ error_code parse_first_line(char *line) {
         token2 = strtok(NULL, ",");
     }
     conf->command_caps = command_caps_conf;
-    conf->ressources_count = ressources_count;
+    conf->ressources_count = ressources_count + 3;
     free(command_caps);
     free(command_caps_conf);
 
@@ -322,22 +323,81 @@ const char *SYSTEM_CMDS[SYS_CMD_COUNTS] = {
  * Cette fonction prend en paramètre un nom de ressource et retourne
  * le numéro de la catégorie de ressource
  * @param res_name le nom
- * @param config la configuration du shell
  * @return le numéro de la catégorie (ou une erreur)
  */
 error_code resource_no(char *res_name) {
-    return NO_ERROR;
+    //On considère que les catégories définies lors de l'initialisation ont le numéro
+    //3, 4, 5,.. dans l'ordre d'initialisation.
+
+    //on checke si la ressource a été définie à l'initialisation.
+    int cat_count = 0;
+    while (conf->commands[cat_count][0] != NULL_TERMINATOR) cat_count++;
+
+    for(int i=0; i < cat_count; i++) {
+
+        if (strcmp(res_name, conf->commands[i]) == 0) {
+            int cat = i + 3;
+            return cat;
+        }
+    }
+
+    //sinon elle fait partie des ressources déjà définies ou de "other".
+    //file system?
+    for (int i=0; i < FS_CMDS_COUNT; i++) {
+
+        if(strcmp(res_name, FILE_SYSTEM_CMDS[i])) {
+            int cat = FS_CMD_TYPE;
+            return cat;
+        }
+    }
+    //network system?
+    for (int i=0; i < NETWORK_CMDS_COUNT; i++) {
+
+        if(strcmp(res_name, NETWORK_CMDS[i])) {
+            int cat = NET_CMD_TYPE;
+            return cat;
+        }
+    }
+    //system?
+    for (int i=0; i < SYS_CMD_COUNTS; i++) {
+
+        if(strcmp(res_name, SYSTEM_CMDS[i])) {
+            int cat = SYS_CMD_TYPE;
+            return cat;
+        }
+    }
+    //si aucune catégorie, c'est other.
+    int cat = cat_count + 3;
+    return cat;
 }
 
 /**
- * Cette fonction prend en paramètre un numéro de ressource et retourne
+ * Cette fonction prend en paramètre un numéro de catégorie de ressource et retourne
  * la quantitée disponible de cette ressource
  * @param resource_no le numéro de ressource
- * @param conf la configuration du shell
  * @return la quantité de la ressource disponible
  */
 int resource_count(int resource_no) {
-    return 0;
+
+    switch(resource_no) {
+        case FS_CMD_TYPE:  return conf->file_system_cap;
+
+        case NET_CMD_TYPE: return conf->network_cap;
+
+        case SYS_CMD_TYPE: return conf->system_cap;
+
+        default:           break;
+    }
+
+    //on calcule le nombre de catégories définies à l'initialisation.
+    int cat_count = 0;
+    while (conf->commands[cat_count][0] != NULL_TERMINATOR) cat_count++;
+
+    //ressource définie à l'initialisation?
+    if (resource_no > 2 && resource_no < cat_count + 3) return conf->command_caps[resource_no-3];
+    else if (resource_no == cat_count + 3) return conf->any_cap;
+    else return ERROR;
+
 }
 
 // Forward declaration
@@ -614,8 +674,24 @@ error_code request_resource(banker_customer *customer, int cmd_depth) {
  * des tests (et de votre programme).
  */
 error_code init_shell() {
+    char *line;
+
+    //initialisation et configuration
+    while(1) {
+        if (HAS_ERROR(readLine(&line))) goto error;
+        if (strlen(line) == 0) continue;
+        if(HAS_ERROR(parse_first_line(line))) goto error;
+        free(line);
+        break;
+    }
+
     error_code err = NO_ERROR;
     return err;
+
+    error:
+    free(line);
+    printf("An error has occured");
+    exit(-1);
 }
 
 /**
@@ -695,15 +771,6 @@ void run_shell() {
     char *line;
     command_head *head;
     command *f;
-
-    //initialisation et configuration
-    while(1) {
-        if (HAS_ERROR(readLine(&line))) goto top;
-        if (strlen(line) == 0) continue;
-        if(HAS_ERROR(parse_first_line(line))) goto bot;
-        free(line);
-        break;
-    }
 
     while (1) {
         if (HAS_ERROR(readLine(&line))) goto bot;
