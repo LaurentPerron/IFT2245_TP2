@@ -140,6 +140,7 @@ void freeConfiguration(configuration *config) {
  * @return un code d'erreur (ou rien si correct)
  */
 error_code parse_first_line(char *line) {
+    // TODO Bug a corriger
     char *commands = NULL;
     char **commands_conf = NULL;
     char *command_caps = NULL;
@@ -153,6 +154,10 @@ error_code parse_first_line(char *line) {
     while (1) {
         if (line[nextAnd] == '&') break;
         nextAnd++;
+        if (line[nextAnd] == NULL_TERMINATOR) {
+            free(conf);
+            return ERROR;
+        }
     }
     commands = malloc(sizeof(char) * (nextAnd + 2)); //nom des commandes à limiter
     if(commands == NULL) goto error;
@@ -692,7 +697,7 @@ error_code init_shell() {
 
     error:
     free(line);
-    printf("An error has occured");
+    printf("An error has occured\n");
     exit(-1);
 }
 
@@ -814,13 +819,15 @@ void run_shell() {
  * le main sera complètement enlevé!
  */
 int main(void) {
-    if (HAS_NO_ERROR(init_shell())) {
+    /*if (HAS_NO_ERROR(init_shell())) {
         run_shell();
         close_shell();
     } else {
         printf("Error while executing the shell.");
-    }
+    }*/
     char * line  = "r10(echo aa) && f10(echo bb) || echo cc &";
+    char *line_one = "echo,sed&8,9&10&11&12&13";
+    parse_first_line(line_one);
     command_head *h;
     create_command_chain(line, &h);
 }
