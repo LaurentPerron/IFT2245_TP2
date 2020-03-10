@@ -125,13 +125,103 @@ void freeStringArray(char **arr) {
 }
 
 void freeConfiguration(configuration *config) {
-    while(1) {
-        if (config == NULL) break;
-        freeStringArray(config->commands);
-        free(conf->command_caps);
+        if (config == NULL) return;
+        if (config->commands != NULL) {
+            for(int i = 0; i < config->command_count; i++) {
+                free(config->commands[i]);
+            }
+            free(config->commands);
+        }
+        if (config->command_caps != NULL) free(conf->command_caps);
         free(config);
-        break;
+}
+
+error_code parse_first_line(const char *line) {
+    char *copy;
+    char *first_block;
+    char *second_block;
+    char *tok;
+    int count;
+    conf = malloc(sizeof(configuration));
+    copy = strdup(line);
+    if (copy == NULL) return ERROR;
+
+    first_block = strdup(strtok(copy, "&")); // Bloc suppose des commands
+    if(strcmp(line, first_block) == 0) {
+        free(copy);
+        return ERROR;
     }
+    second_block = strdup(strtok(NULL, "&")); // bloc suppose des caps
+    free(copy);
+    // On regarde si fist_token[0] == lettre ou nombre
+    if(first_block == NULL || second_block == NULL){
+        return ERROR;
+    }
+    if (!(first_block[0] >= '0' && first_block[0] <= '9')) { // On a des commandes supp
+       count = 1;
+       int i = 0;
+       while(first_block[i] != NULL_TERMINATOR) {
+           if(first_block[i] == ',') count++;
+           i++;
+       }
+       conf->commands = (char **)malloc(count * sizeof(char *));
+       conf->command_count = count;
+       conf->ressources_count = count + 4;
+       char *coms = strdup(first_block);
+       char *com = strtok(coms, ",");
+       int j = 0;
+       while(j < count) { // créer le tableau des commandes
+           conf->commands[j] = strdup(com);
+
+           com = strtok(NULL, ",");
+           j++;
+       }
+       // Créer le tableau des ressources
+       conf->command_caps = (int *)malloc(count * sizeof(int));
+       char *caps = strdup(second_block);
+       char *cap = strtok(caps, ",");
+       int k = 0;
+        while(k < count) { // créer le tableau des commandes
+            if(cap == NULL) return ERROR;
+            conf->command_caps[k] = (int) strtol(cap, NULL , 10);
+            cap = strtok(NULL, ",");
+            k++;
+        }
+        free(coms);
+        free(com);
+        free(caps);
+        free(cap);
+    } else {
+        count = 0;
+        conf->command_caps = NULL;
+        conf->commands = NULL;
+        conf->command_count = 0;
+        conf->ressources_count = 4;
+    }
+    copy = strdup(line);
+    if (copy == NULL) return ERROR;
+    tok = strtok(copy, "&");
+    if(count > 0) {
+        tok = strtok(NULL, "&");
+        tok = strtok(NULL, "&");
+    }
+    if(tok == NULL) return ERROR;
+    conf->file_system_cap = (int) strtol(tok, NULL, 10);
+    tok = strtok(NULL, "&");
+    if(tok == NULL) return ERROR;
+    conf->network_cap = (int) strtol(tok, NULL, 10);
+    tok = strtok(NULL, "&");
+    if(tok == NULL) return ERROR;
+    conf->system_cap = (int) strtol(tok, NULL, 10);
+    tok = strtok(NULL, "&");
+    if(tok == NULL) return ERROR;
+    conf->any_cap = (int) strtol(tok, NULL, 10);
+
+    free(copy);
+    free(first_block);
+    free(second_block);
+    //free(tok);
+    return NO_ERROR;
 }
 
 /**
@@ -139,7 +229,7 @@ void freeConfiguration(configuration *config) {
  * @param line la première ligne du shell
  * @return un code d'erreur (ou rien si correct)
  */
-error_code parse_first_line(char *line) {
+error_code parse_first_line_OLD(char *line) {
     // TODO Bug a corriger
     char *commands = NULL;
     char **commands_conf = NULL;
@@ -335,8 +425,8 @@ error_code resource_no(char *res_name) {
     //3, 4, 5,.. dans l'ordre d'initialisation.
 
     //on checke si la ressource a été définie à l'initialisation.
-    int cat_count = 0;
-    while (conf->commands[cat_count][0] != NULL_TERMINATOR) cat_count++;
+    int cat_count = (int)conf->command_count;
+    if(cat_count == 0) goto no_commands;
 
     for(int i=0; i < cat_count; i++) {
 
@@ -345,29 +435,29 @@ error_code resource_no(char *res_name) {
             return cat;
         }
     }
-
+    no_commands:
     //sinon elle fait partie des ressources déjà définies ou de "other".
     //file system?
     for (int i=0; i < FS_CMDS_COUNT; i++) {
 
-        if(strcmp(res_name, FILE_SYSTEM_CMDS[i])) {
-            int cat = FS_CMD_TYPE;
+        if(strcmp(res_name, FILE_SYSTEM_CMDS[i]) == 0) {
+            int cat = 0;
             return cat;
         }
     }
     //network system?
     for (int i=0; i < NETWORK_CMDS_COUNT; i++) {
 
-        if(strcmp(res_name, NETWORK_CMDS[i])) {
-            int cat = NET_CMD_TYPE;
+        if(strcmp(res_name, NETWORK_CMDS[i]) == 0) {
+            int cat = 1;
             return cat;
         }
     }
     //system?
     for (int i=0; i < SYS_CMD_COUNTS; i++) {
 
-        if(strcmp(res_name, SYSTEM_CMDS[i])) {
-            int cat = SYS_CMD_TYPE;
+        if(strcmp(res_name, SYSTEM_CMDS[i]) == 0) {
+            int cat = 2;
             return cat;
         }
     }
@@ -386,29 +476,26 @@ int resource_count(int resource_no) {
 
     //la catégorie est déjà prédéfinie
     switch(resource_no) {
-        case FS_CMD_TYPE:  return conf->file_system_cap;
+        case 0:  return conf->file_system_cap;
 
-        case NET_CMD_TYPE: return conf->network_cap;
+        case 1: return conf->network_cap;
 
-        case SYS_CMD_TYPE: return conf->system_cap;
+        case 2: return conf->system_cap;
 
         default:           break;
     }
 
     //on calcule le nombre de catégories définies à l'initialisation.
-    int cat_count = 0;
-    while (conf->commands[cat_count][0] != NULL_TERMINATOR) cat_count++;
-
+    unsigned int cat_count = conf->command_count;
     //catégorie définie à l'initialisation?
     if (resource_no > 2 && resource_no < cat_count + 3) return conf->command_caps[resource_no-3];
     //other?
     else if (resource_no == cat_count + 3) return conf->any_cap;
     else return ERROR;
-
 }
 
 // Forward declaration
-error_code evaluate_whole_chain(command_head *head);
+error_code evaluate_whole_chain(command_head **head);
 
 /**
  * Créer une chaîne de commande qui correspond à une ligne de commandes
@@ -541,12 +628,11 @@ error_code create_command_chain(char *line, command_head **result) {
 
                     copy_index++;
                 }
-
+                c->call_size = space_nb + 2;
                 free(wordPtr);
             }
 
             c->call = call;
-
             c->next = NULL;
             c->op = operator;
             h->background = 0;
@@ -580,7 +666,20 @@ error_code create_command_chain(char *line, command_head **result) {
  * @param command_block le block de commande
  * @return un code d'erreur
  */
-error_code count_ressources(command_head *head, command *command_block) {
+error_code count_ressources(command_head **head, command **command_block) {
+    char *c = (*command_block)->call[0];
+    int count = (*command_block)->count;
+    unsigned int len = 4;
+    len = conf->ressources_count;
+    int ressources[len];
+    for(int i = 0; i < len; i++) {
+        ressources[i] = 0;
+    }
+    int index = resource_no(c);
+    ressources[index] = count;
+
+    (*command_block)->ressources = ressources;
+    (*head)->max_resources[index] += count;
     return NO_ERROR;
 }
 
@@ -589,7 +688,20 @@ error_code count_ressources(command_head *head, command *command_block) {
  * @param head la tête de la chaîne
  * @return un code d'erreur
  */
-error_code evaluate_whole_chain(command_head *head) {
+error_code evaluate_whole_chain(command_head **head) {
+    int len = (int)conf->ressources_count;
+    (*head)->max_resources_count = len;
+    int max_ressources[len];
+    for(int i = 0; i < len; i++) {
+        max_ressources[i] = 0;
+    }
+    (*head)->max_resources = max_ressources;
+    command *c = (*head)->command;
+
+    while(c != NULL) {
+        count_ressources(head, &c);
+        c = c->next;
+    }
     return NO_ERROR;
 }
 
@@ -707,6 +819,8 @@ error_code init_shell() {
  * et de votre programme.
  */
 void close_shell() {
+
+    freeConfiguration(conf);
 }
 
 int callCommand(command *current) {
@@ -784,6 +898,11 @@ void run_shell() {
         if (strlen(line) == 0) continue;
 
         if (HAS_ERROR(create_command_chain(line, &head))) goto bot;
+        evaluate_whole_chain(&head);
+        for(int i = 0; i < conf->ressources_count; i++) {
+            printf("%d, ", head->max_resources[i]);
+        }
+        printf("\n");
         free(line);
         f = head->command;
         if (head->background) {
@@ -819,15 +938,19 @@ void run_shell() {
  * le main sera complètement enlevé!
  */
 int main(void) {
-    /*if (HAS_NO_ERROR(init_shell())) {
+    char * line  = "r20(echo aa) && f10(echo bb) || echo cc &";
+    char *line_one = "echo,sed,ls&7,8,9&10&11&12&13";
+    parse_first_line(line_one);
+    command_head *h;
+    create_command_chain(line, &h);
+    evaluate_whole_chain(&h);
+    printf("%d, %d, %d, %d, %d, %d, %d\n", h->max_resources[0], h->max_resources[1], h->max_resources[2], h->max_resources[3], h->max_resources[4], h->max_resources[5], h->max_resources[6]);
+    freeConfiguration(conf);
+    conf = NULL;
+    if (HAS_NO_ERROR(init_shell())) {
         run_shell();
         close_shell();
     } else {
         printf("Error while executing the shell.");
-    }*/
-    char * line  = "r10(echo aa) && f10(echo bb) || echo cc &";
-    char *line_one = "echo,sed&8,9&10&11&12&13";
-    parse_first_line(line_one);
-    command_head *h;
-    create_command_chain(line, &h);
+    }
 }
