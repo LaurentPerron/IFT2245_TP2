@@ -803,7 +803,13 @@ error_code init_shell() {
         free(line);
         break;
     }
-
+    printf("%d, ", conf->file_system_cap);
+    printf("%d, ", conf->network_cap);
+    printf("%d, ", conf->system_cap);
+    for(int i = 0; i < conf->command_count; i++) {
+        printf("%d, ", conf->command_caps[i]);
+    }
+    printf("%d\n", conf->any_cap);
     error_code err = NO_ERROR;
     return err;
 
