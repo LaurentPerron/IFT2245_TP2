@@ -35,6 +35,11 @@ struct command_chain_head_struct {
     bool background;
 };
 
+typedef struct {
+    command *com;
+    int exit_code;
+} t_args;
+
 // Forward declaration
 typedef struct banker_customer_struct banker_customer;
 
@@ -667,9 +672,10 @@ error_code create_command_chain(char *line, command_head **result) {
  * @return un code d'erreur
  */
 error_code count_ressources(command_head **head, command **command_block) {
+    // TODO retirer l'utilisation de head pour calculer le max dans la procedure appellante
     char *c = (*command_block)->call[0];
     int count = (*command_block)->count;
-    unsigned int len = 4;
+    unsigned int len;
     len = conf->ressources_count;
     int ressources[len];
     for(int i = 0; i < len; i++) {
@@ -689,6 +695,7 @@ error_code count_ressources(command_head **head, command **command_block) {
  * @return un code d'erreur
  */
 error_code evaluate_whole_chain(command_head **head) {
+    // TODO changer implementation pour avoir le max de ressources et non la somme
     int len = (int)conf->ressources_count;
     (*head)->max_resources_count = len;
     int max_ressources[len];
@@ -835,15 +842,19 @@ int callCommand(command *current) {
 
     int exitCode = -1;     // the exit code of the child
     pid_t pid = 0;
+    //printf("and here too\n");
     for (int i = 0; i < current->count; i++) {
         pid = fork();
+        //printf("Got here\n");
         if (pid < 0) {        // forking failed
+            printf("Fork failed\n");
             return pid;
         } else if (pid == 0) {
             // -----------------------------------------------------
             //                    CHILD PROCESS
             // -----------------------------------------------------
             char *cmd_name = current->call[0];
+            //printf("Got there !\n");
             execvp(cmd_name, current->call);    // execvp searches for command[0] in PATH, and then calls command
 
             printf("bash: %s: command not found\n", cmd_name);    // if we reach this, exec couldn't find the command
@@ -862,8 +873,11 @@ int callCommand(command *current) {
     return 1;
 }
 
+
 error_code callCommands(command *current) {
+    //printf("and here\n");
     if (current == NULL || current->call == NULL) return 0;
+    //printf("then here !\n");
 
     int ret = callCommand(current);
     if (ret == 7) return 7;
@@ -889,6 +903,15 @@ error_code callCommands(command *current) {
             return callCommands(next);
     }
 }
+
+void *runner(void *arg) {
+    t_args *a;
+    a = (t_args *)arg;
+    //printf("Got here first!\n");
+    callCommands((command *)a->com);
+    //printf("Got through!\n");
+    pthread_exit(NULL);
+}
 /**
  * Utilisez cette fonction pour y placer la boucle d'exécution (REPL)
  * de votre shell. Vous devez aussi y créer le thread banquier
@@ -898,6 +921,7 @@ void run_shell() {
     char *line;
     command_head *head;
     command *f;
+    pthread_t tid;
 
     while (1) {
         if (HAS_ERROR(readLine(&line))) goto bot;
@@ -912,19 +936,31 @@ void run_shell() {
         free(line);
         f = head->command;
         if (head->background) {
-            pid_t pid = fork();
+            t_args *args;
+            args = (t_args *)malloc(sizeof(t_args));
+            args->com = malloc(sizeof(command));
+            memcpy(args->com, f, sizeof(command));
+            args->exit_code = exit_code;
+            pthread_create(&tid, NULL, runner, (void *)args);
+            //pthread_join(tid, NULL);
+            freeCommands(f);
+            free(head);
+            //exit_code = args->exit_code;
+            /*pid_t pid = fork();
             if (pid == -1) {        // forking failed
                 freeCommands(f);
                 free(head);
             } else if (pid == 0) {    // child
                 if (HAS_ERROR(exit_code = callCommands(f))) goto toptop;
                 exit(0);    // and then we exit with 2, signaling an error
-            }
+            }*/
 
-        } else exit_code = callCommands(f);
+        } else {
+            exit_code = callCommands(f);
+            freeCommands(f);
+            free(head);
+        }
 
-        freeCommands(f);
-        free(head);
         if(exit_code == 7) exit(0);
     }
 
