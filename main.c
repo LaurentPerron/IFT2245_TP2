@@ -9,6 +9,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <wait.h>
+#define print(...) do{printf(__VA_ARGS__); fflush(stdout); } while(0)
 
 typedef unsigned char bool;
 typedef struct command_struct command;
@@ -34,6 +35,11 @@ struct command_chain_head_struct {
     pthread_mutex_t *mutex;
     bool background;
 };
+
+typedef struct {
+    command *com;
+    int exit_code;
+} t_args;
 
 // Forward declaration
 typedef struct banker_customer_struct banker_customer;
@@ -220,7 +226,6 @@ error_code parse_first_line(const char *line) {
     free(copy);
     free(first_block);
     free(second_block);
-    //free(tok);
     return NO_ERROR;
 }
 
@@ -441,7 +446,7 @@ error_code resource_no(char *res_name) {
     for (int i=0; i < FS_CMDS_COUNT; i++) {
 
         if(strcmp(res_name, FILE_SYSTEM_CMDS[i]) == 0) {
-            int cat = 0;
+            int cat = FS_CMD_TYPE;
             return cat;
         }
     }
@@ -449,7 +454,7 @@ error_code resource_no(char *res_name) {
     for (int i=0; i < NETWORK_CMDS_COUNT; i++) {
 
         if(strcmp(res_name, NETWORK_CMDS[i]) == 0) {
-            int cat = 1;
+            int cat = NET_CMD_TYPE;
             return cat;
         }
     }
@@ -457,7 +462,7 @@ error_code resource_no(char *res_name) {
     for (int i=0; i < SYS_CMD_COUNTS; i++) {
 
         if(strcmp(res_name, SYSTEM_CMDS[i]) == 0) {
-            int cat = 2;
+            int cat = SYS_CMD_TYPE;
             return cat;
         }
     }
@@ -476,11 +481,11 @@ int resource_count(int resource_no) {
 
     //la catégorie est déjà prédéfinie
     switch(resource_no) {
-        case 0:  return conf->file_system_cap;
+        case FS_CMD_TYPE:  return conf->file_system_cap;
 
-        case 1: return conf->network_cap;
+        case NET_CMD_TYPE: return conf->network_cap;
 
-        case 2: return conf->system_cap;
+        case SYS_CMD_TYPE: return conf->system_cap;
 
         default:           break;
     }
@@ -488,7 +493,7 @@ int resource_count(int resource_no) {
     //on calcule le nombre de catégories définies à l'initialisation.
     unsigned int cat_count = conf->command_count;
     //catégorie définie à l'initialisation?
-    if (resource_no > 2 && resource_no < cat_count + 3) return conf->command_caps[resource_no-3];
+    if (resource_no > SYS_CMD_TYPE && resource_no < cat_count + 3) return conf->command_caps[resource_no-3];
     //other?
     else if (resource_no == cat_count + 3) return conf->any_cap;
     else return ERROR;
@@ -667,9 +672,10 @@ error_code create_command_chain(char *line, command_head **result) {
  * @return un code d'erreur
  */
 error_code count_ressources(command_head **head, command **command_block) {
+    // TODO retirer l'utilisation de head pour calculer le max dans la procedure appellante
     char *c = (*command_block)->call[0];
     int count = (*command_block)->count;
-    unsigned int len = 4;
+    unsigned int len;
     len = conf->ressources_count;
     int ressources[len];
     for(int i = 0; i < len; i++) {
@@ -689,6 +695,7 @@ error_code count_ressources(command_head **head, command **command_block) {
  * @return un code d'erreur
  */
 error_code evaluate_whole_chain(command_head **head) {
+    // TODO changer implementation pour avoir le max de ressources et non la somme
     int len = (int)conf->ressources_count;
     (*head)->max_resources_count = len;
     int max_ressources[len];
@@ -753,6 +760,7 @@ int *_available = NULL;
  * @return le pointeur vers le compte client retourné
  */
 banker_customer *register_command(command_head *head) {
+<<<<<<< HEAD
     banker_customer *customers = (banker_customer *) malloc(sizeof(banker_customer));
     if (customers == NULL) {
         free(customers);
@@ -803,6 +811,15 @@ banker_customer *register_command(command_head *head) {
 
     error:
     return ERROR;
+=======
+    banker_customer *result;
+    result = (banker_customer *)malloc(sizeof(banker_customer));
+    // TODO Verifier si le malloc est NULL
+
+    // TODO creer la chaine de customer
+
+    return NULL;
+>>>>>>> c4d377ab6fd395d8004789415f438d4948614edd
 }
 
 /**
@@ -915,6 +932,7 @@ int callCommand(command *current) {
     for (int i = 0; i < current->count; i++) {
         pid = fork();
         if (pid < 0) {        // forking failed
+            printf("Fork failed\n");
             return pid;
         } else if (pid == 0) {
             // -----------------------------------------------------
@@ -938,6 +956,7 @@ int callCommand(command *current) {
     if (x != 0) return 0;
     return 1;
 }
+
 
 error_code callCommands(command *current) {
     if (current == NULL || current->call == NULL) return 0;
@@ -966,15 +985,23 @@ error_code callCommands(command *current) {
             return callCommands(next);
     }
 }
+
+void *runner(void *arg) {
+    command_head *h;
+    h = (command_head *)arg;
+    callCommands(h->command);
+    pthread_exit(0);
+}
 /**
  * Utilisez cette fonction pour y placer la boucle d'exécution (REPL)
  * de votre shell. Vous devez aussi y créer le thread banquier
  */
-void run_shell() {
+/*void run_shell() {
     int exit_code = 0;
     char *line;
     command_head *head;
     command *f;
+    pthread_t tid;
 
     while (1) {
         if (HAS_ERROR(readLine(&line))) goto bot;
@@ -989,22 +1016,18 @@ void run_shell() {
         free(line);
         f = head->command;
         if (head->background) {
-            pid_t pid = fork();
-            if (pid == -1) {        // forking failed
-                freeCommands(f);
-                free(head);
-            } else if (pid == 0) {    // child
-                if (HAS_ERROR(exit_code = callCommands(f))) goto toptop;
-                exit(0);    // and then we exit with 2, signaling an error
-            }
+            command_head *arg = head;
+            pthread_create(&tid, NULL, runner, (void *)arg);
+        } else {
+            exit_code = callCommands(f);
+            freeCommands(f);
+            free(head);
+        }
 
-        } else exit_code = callCommands(f);
-
-        freeCommands(f);
-        free(head);
-        if(exit_code == 7) exit(0);
+        if(exit_code == 7) {
+            return;
+        }
     }
-
     toptop:
     freeCommands(f);
     free(head);
@@ -1014,21 +1037,23 @@ void run_shell() {
     printf("An error has occured");
     exit(-1);
 }
-
+*/
 /**
  * Vous ne devez pas modifier le main!
  * Il contient la structure que vous devez utiliser. Lors des tests,
  * le main sera complètement enlevé!
  */
 int main(void) {
-    char * line  = "r20(echo aa) && f10(echo bb) || echo cc &";
+    /*char * line  = "r20(echo aa) && f10(echo bb) || echo cc &";
     char *line_one = "echo,sed,ls&7,8,9&10&11&12&13";
     parse_first_line(line_one);
     command_head *h;
     create_command_chain(line, &h);
     evaluate_whole_chain(&h);
-    printf("%d, %d, %d, %d, %d, %d, %d\n", h->max_resources[0], h->max_resources[1], h->max_resources[2], h->max_resources[3], h->max_resources[4], h->max_resources[5], h->max_resources[6]);
+    //printf("%d, %d, %d, %d, %d, %d, %d\n", h->max_resources[0], h->max_resources[1], h->max_resources[2], h->max_resources[3], h->max_resources[4], h->max_resources[5], h->max_resources[6]);
     freeConfiguration(conf);
+    freeCommands(h->command);
+    free(h);*/
     conf = NULL;
     if (HAS_NO_ERROR(init_shell())) {
         run_shell();
