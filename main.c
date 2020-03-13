@@ -708,6 +708,34 @@ error_code evaluate_whole_chain(command_head **head) {
 // ---------------------------------------------------------------------------------------------------------------------
 //                                              BANKER'S FUNCTIONS
 // ---------------------------------------------------------------------------------------------------------------------
+/*
+struct command_struct {
+    int *ressources;
+    char **call;
+    int call_size;
+    int count;
+    operator op;
+    command *next;
+};
+
+struct command_chain_head_struct {
+    int *max_resources;
+    int max_resources_count;
+    command *command;
+    pthread_mutex_t *mutex;
+    bool background;
+};
+
+// Forward declaration
+typedef struct banker_customer_struct banker_customer;
+
+struct banker_customer_struct {
+    command_head *head;
+    banker_customer *next;
+    banker_customer *prev;
+    int *current_resources;
+    int depth;
+};*/
 
 static banker_customer *first;
 static pthread_mutex_t *register_mutex = NULL;
@@ -725,7 +753,56 @@ int *_available = NULL;
  * @return le pointeur vers le compte client retourné
  */
 banker_customer *register_command(command_head *head) {
-    return NULL;
+    banker_customer *customers = (banker_customer *) malloc(sizeof(banker_customer));
+    if (customers == NULL) {
+        free(customers);
+        goto error;
+    }
+    customers->head = head;
+    customers->prev = NULL;
+    customers->current_resources = 0;
+    customers->depth = 0;
+
+    //on cherche le nombre de commandes total
+    command *current = (command *) malloc(sizeof(command));
+    if (command == NULL) {
+        free(customers);
+        free(current);
+        goto error;
+    }
+    current = head->command;
+    int count = 0;
+    while (current != NULL) {
+        count++;
+        current = current->next;
+    }
+    free(current);
+
+    //on crée la liste chaînée
+    int depth = 1;
+    for (int i=0; i<count; i++) {
+        banker_customer *temp = (banker_customer *) malloc(sizeof(banker_customer));
+        if (temp ==NULL) {
+            free(customers);
+            free(temp);
+            goto error;
+        }
+        customers->next = temp;
+        temp->head = head;
+        temp->prev = customers;
+        temp->current_resources = 0;
+        temp->depth = depth;
+
+        depth++;
+        customers = temp;
+    }
+    while (customers->prev != NULL) {
+        customers = customers->prev;
+    }
+    return customers;
+
+    error:
+    return ERROR;
 }
 
 /**
