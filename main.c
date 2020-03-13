@@ -9,6 +9,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <wait.h>
+#define print(...) do{printf(__VA_ARGS__); fflush(stdout); } while(0)
 
 typedef unsigned char bool;
 typedef struct command_struct command;
@@ -225,7 +226,6 @@ error_code parse_first_line(const char *line) {
     free(copy);
     free(first_block);
     free(second_block);
-    //free(tok);
     return NO_ERROR;
 }
 
@@ -446,7 +446,7 @@ error_code resource_no(char *res_name) {
     for (int i=0; i < FS_CMDS_COUNT; i++) {
 
         if(strcmp(res_name, FILE_SYSTEM_CMDS[i]) == 0) {
-            int cat = 0;
+            int cat = FS_CMD_TYPE;
             return cat;
         }
     }
@@ -454,7 +454,7 @@ error_code resource_no(char *res_name) {
     for (int i=0; i < NETWORK_CMDS_COUNT; i++) {
 
         if(strcmp(res_name, NETWORK_CMDS[i]) == 0) {
-            int cat = 1;
+            int cat = NET_CMD_TYPE;
             return cat;
         }
     }
@@ -462,7 +462,7 @@ error_code resource_no(char *res_name) {
     for (int i=0; i < SYS_CMD_COUNTS; i++) {
 
         if(strcmp(res_name, SYSTEM_CMDS[i]) == 0) {
-            int cat = 2;
+            int cat = SYS_CMD_TYPE;
             return cat;
         }
     }
@@ -481,11 +481,11 @@ int resource_count(int resource_no) {
 
     //la catégorie est déjà prédéfinie
     switch(resource_no) {
-        case 0:  return conf->file_system_cap;
+        case FS_CMD_TYPE:  return conf->file_system_cap;
 
-        case 1: return conf->network_cap;
+        case NET_CMD_TYPE: return conf->network_cap;
 
-        case 2: return conf->system_cap;
+        case SYS_CMD_TYPE: return conf->system_cap;
 
         default:           break;
     }
@@ -493,7 +493,7 @@ int resource_count(int resource_no) {
     //on calcule le nombre de catégories définies à l'initialisation.
     unsigned int cat_count = conf->command_count;
     //catégorie définie à l'initialisation?
-    if (resource_no > 2 && resource_no < cat_count + 3) return conf->command_caps[resource_no-3];
+    if (resource_no > SYS_CMD_TYPE && resource_no < cat_count + 3) return conf->command_caps[resource_no-3];
     //other?
     else if (resource_no == cat_count + 3) return conf->any_cap;
     else return ERROR;
@@ -732,6 +732,12 @@ int *_available = NULL;
  * @return le pointeur vers le compte client retourné
  */
 banker_customer *register_command(command_head *head) {
+    banker_customer *result;
+    result = (banker_customer *)malloc(sizeof(banker_customer));
+    // TODO Verifier si le malloc est NULL
+
+    // TODO creer la chaine de customer
+
     return NULL;
 }
 
@@ -852,7 +858,6 @@ int callCommand(command *current) {
             //                    CHILD PROCESS
             // -----------------------------------------------------
             char *cmd_name = current->call[0];
-            //printf("Got there !\n");
             execvp(cmd_name, current->call);    // execvp searches for command[0] in PATH, and then calls command
 
             printf("bash: %s: command not found\n", cmd_name);    // if we reach this, exec couldn't find the command
