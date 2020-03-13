@@ -1,4 +1,4 @@
-# Install script for directory: /mnt/c/Users/Laurent/Documents/IFT2245/TP2
+# Install script for directory: /mnt/c/Users/Laurent/Documents/ift2245/IFT2245_TP2
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -45,5 +45,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/mnt/c/Users/Laurent/Documents/IFT2245/TP2/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/mnt/c/Users/Laurent/Documents/ift2245/IFT2245_TP2/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

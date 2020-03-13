@@ -842,10 +842,8 @@ int callCommand(command *current) {
 
     int exitCode = -1;     // the exit code of the child
     pid_t pid = 0;
-    //printf("and here too\n");
     for (int i = 0; i < current->count; i++) {
         pid = fork();
-        //printf("Got here\n");
         if (pid < 0) {        // forking failed
             printf("Fork failed\n");
             return pid;
@@ -875,9 +873,7 @@ int callCommand(command *current) {
 
 
 error_code callCommands(command *current) {
-    //printf("and here\n");
     if (current == NULL || current->call == NULL) return 0;
-    //printf("then here !\n");
 
     int ret = callCommand(current);
     if (ret == 7) return 7;
@@ -905,12 +901,10 @@ error_code callCommands(command *current) {
 }
 
 void *runner(void *arg) {
-    t_args *a;
-    a = (t_args *)arg;
-    //printf("Got here first!\n");
-    callCommands((command *)a->com);
-    //printf("Got through!\n");
-    pthread_exit(NULL);
+    command_head *h;
+    h = (command_head *)arg;
+    callCommands(h->command);
+    pthread_exit(0);
 }
 /**
  * Utilisez cette fonction pour y placer la boucle d'exécution (REPL)
@@ -936,34 +930,18 @@ void run_shell() {
         free(line);
         f = head->command;
         if (head->background) {
-            t_args *args;
-            args = (t_args *)malloc(sizeof(t_args));
-            args->com = malloc(sizeof(command));
-            memcpy(args->com, f, sizeof(command));
-            args->exit_code = exit_code;
-            pthread_create(&tid, NULL, runner, (void *)args);
-            //pthread_join(tid, NULL);
-            freeCommands(f);
-            free(head);
-            //exit_code = args->exit_code;
-            /*pid_t pid = fork();
-            if (pid == -1) {        // forking failed
-                freeCommands(f);
-                free(head);
-            } else if (pid == 0) {    // child
-                if (HAS_ERROR(exit_code = callCommands(f))) goto toptop;
-                exit(0);    // and then we exit with 2, signaling an error
-            }*/
-
+            command_head *arg = head;
+            pthread_create(&tid, NULL, runner, (void *)arg);
         } else {
             exit_code = callCommands(f);
             freeCommands(f);
             free(head);
         }
 
-        if(exit_code == 7) exit(0);
+        if(exit_code == 7) {
+            return;
+        }
     }
-
     toptop:
     freeCommands(f);
     free(head);
@@ -980,14 +958,16 @@ void run_shell() {
  * le main sera complètement enlevé!
  */
 int main(void) {
-    char * line  = "r20(echo aa) && f10(echo bb) || echo cc &";
+    /*char * line  = "r20(echo aa) && f10(echo bb) || echo cc &";
     char *line_one = "echo,sed,ls&7,8,9&10&11&12&13";
     parse_first_line(line_one);
     command_head *h;
     create_command_chain(line, &h);
     evaluate_whole_chain(&h);
-    printf("%d, %d, %d, %d, %d, %d, %d\n", h->max_resources[0], h->max_resources[1], h->max_resources[2], h->max_resources[3], h->max_resources[4], h->max_resources[5], h->max_resources[6]);
+    //printf("%d, %d, %d, %d, %d, %d, %d\n", h->max_resources[0], h->max_resources[1], h->max_resources[2], h->max_resources[3], h->max_resources[4], h->max_resources[5], h->max_resources[6]);
     freeConfiguration(conf);
+    freeCommands(h->command);
+    free(h);*/
     conf = NULL;
     if (HAS_NO_ERROR(init_shell())) {
         run_shell();

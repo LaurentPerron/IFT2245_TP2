@@ -4,7 +4,7 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_C
-  "/mnt/c/Users/Laurent/Documents/IFT2245/TP2/main.c" "/mnt/c/Users/Laurent/Documents/IFT2245/TP2/cmake-build-debug/CMakeFiles/TP2.dir/main.c.o"
+  "/mnt/c/Users/Laurent/Documents/ift2245/IFT2245_TP2/main.c" "/mnt/c/Users/Laurent/Documents/ift2245/IFT2245_TP2/cmake-build-debug/CMakeFiles/TP2.dir/main.c.o"
   )
 set(CMAKE_C_COMPILER_ID "GNU")
 
