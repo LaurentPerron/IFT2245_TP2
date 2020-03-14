@@ -132,11 +132,9 @@ void freeStringArray(char **arr) {
 
 void freeConfiguration(configuration *config) {
         if (config == NULL) return;
+
         if (config->commands != NULL) {
-            for(int i = 0; i < config->command_count; i++) {
-                free(config->commands[i]);
-            }
-            free(config->commands);
+            freeCommands(config->commands);
         }
         if (config->command_caps != NULL) free(conf->command_caps);
         free(config);
@@ -760,7 +758,6 @@ int *_available = NULL;
  * @return le pointeur vers le compte client retourné
  */
 banker_customer *register_command(command_head *head) {
-<<<<<<< HEAD
     banker_customer *customers = (banker_customer *) malloc(sizeof(banker_customer));
     if (customers == NULL) {
         free(customers);
@@ -773,7 +770,7 @@ banker_customer *register_command(command_head *head) {
 
     //on cherche le nombre de commandes total
     command *current = (command *) malloc(sizeof(command));
-    if (command == NULL) {
+    if (current == NULL) {
         free(customers);
         free(current);
         goto error;
@@ -810,16 +807,8 @@ banker_customer *register_command(command_head *head) {
     return customers;
 
     error:
-    return ERROR;
-=======
-    banker_customer *result;
-    result = (banker_customer *)malloc(sizeof(banker_customer));
-    // TODO Verifier si le malloc est NULL
-
-    // TODO creer la chaine de customer
-
-    return NULL;
->>>>>>> c4d377ab6fd395d8004789415f438d4948614edd
+    printf("An error has occured.\n");
+    exit(-1);
 }
 
 /**
@@ -830,6 +819,30 @@ banker_customer *register_command(command_head *head) {
  * @return un code d'erreur
  */
 error_code unregister_command(banker_customer *customer) {
+
+    //le client est le premier de la liste
+    if ((banker_customer *)customer->prev == NULL) {
+        //il n'y a qu'un client
+        if ((banker_customer *)customer->next == NULL) goto end;
+
+        //il y a plus d'un client
+        else (banker_customer *)customer->next->prev = NULL;
+    }
+
+    //le client n'est pas premier de la liste
+    else {
+        //le client est dernier de la liste
+        if ((banker_customer *)customer->next == NULL) (banker_customer *)customer->prev->next = NULL;
+
+        //le client n'est ni dernier ni premier
+        else {
+            (banker_customer *)customer->prev->next = next;
+            (banker_customer *)customer->next->prev = prev;
+        }
+    }
+
+    end:
+    free(customer);
     return NO_ERROR;
 }
 
@@ -996,7 +1009,7 @@ void *runner(void *arg) {
  * Utilisez cette fonction pour y placer la boucle d'exécution (REPL)
  * de votre shell. Vous devez aussi y créer le thread banquier
  */
-/*void run_shell() {
+void run_shell() {
     int exit_code = 0;
     char *line;
     command_head *head;
@@ -1014,6 +1027,8 @@ void *runner(void *arg) {
         }
         printf("\n");
         free(line);
+        printf("get there.\n");
+        banker_customer *test = register_command(head);
         f = head->command;
         if (head->background) {
             command_head *arg = head;
@@ -1037,7 +1052,7 @@ void *runner(void *arg) {
     printf("An error has occured");
     exit(-1);
 }
-*/
+
 /**
  * Vous ne devez pas modifier le main!
  * Il contient la structure que vous devez utiliser. Lors des tests,
