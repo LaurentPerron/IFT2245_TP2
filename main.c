@@ -134,7 +134,10 @@ void freeConfiguration(configuration *config) {
         if (config == NULL) return;
 
         if (config->commands != NULL) {
-            freeCommands(config->commands);
+            for(int i = 0; i < config->command_count; i++) {
+                free(config->commands[i]);
+            }
+            free(config->commands);
         }
         if (config->command_caps != NULL) free(conf->command_caps);
         free(config);
@@ -498,7 +501,7 @@ int resource_count(int resource_no) {
 }
 
 // Forward declaration
-error_code evaluate_whole_chain(command_head **head);
+error_code evaluate_whole_chain(command_head *head);
 
 /**
  * Créer une chaîne de commande qui correspond à une ligne de commandes
@@ -669,21 +672,21 @@ error_code create_command_chain(char *line, command_head **result) {
  * @param command_block le block de commande
  * @return un code d'erreur
  */
-error_code count_ressources(command_head **head, command **command_block) {
-    // TODO retirer l'utilisation de head pour calculer le max dans la procedure appellante
-    char *c = (*command_block)->call[0];
-    int count = (*command_block)->count;
+error_code count_ressources(command_head *head, command *command_block) {
+    char *c = command_block->call[0];
+    int count = command_block->count;
     unsigned int len;
     len = conf->ressources_count;
-    int ressources[len];
+    int *ressources = (int *)malloc(sizeof(int) * len);
+    // TODO verifier == -1
     for(int i = 0; i < len; i++) {
         ressources[i] = 0;
     }
     int index = resource_no(c);
     ressources[index] = count;
 
-    (*command_block)->ressources = ressources;
-    (*head)->max_resources[index] += count;
+    command_block->ressources = ressources;
+    //head->max_resources[index] += count;
     return NO_ERROR;
 }
 
@@ -692,21 +695,37 @@ error_code count_ressources(command_head **head, command **command_block) {
  * @param head la tête de la chaîne
  * @return un code d'erreur
  */
-error_code evaluate_whole_chain(command_head **head) {
-    // TODO changer implementation pour avoir le max de ressources et non la somme
+error_code evaluate_whole_chain(command_head *head) {
     int len = (int)conf->ressources_count;
-    (*head)->max_resources_count = len;
+    head->max_resources_count = len;
     int max_ressources[len];
     for(int i = 0; i < len; i++) {
         max_ressources[i] = 0;
     }
-    (*head)->max_resources = max_ressources;
-    command *c = (*head)->command;
+    head->max_resources = max_ressources;
+    command *c = head->command;
 
+    // Count ressources
     while(c != NULL) {
-        count_ressources(head, &c);
+        count_ressources(head, c);
         c = c->next;
     }
+    // Adds them up
+    for(int j = 0; j < len; j++) {
+        int max = 0;
+        int sum = 0;
+        command *current = head->command;
+        while(current != NULL) {
+            sum += current->ressources[j];
+            if(max < sum) {
+                max += current->ressources[j];
+            }
+
+            current  = current->next;
+        }
+        head->max_resources[j] = max;
+    }
+
     return NO_ERROR;
 }
 
@@ -821,23 +840,23 @@ banker_customer *register_command(command_head *head) {
 error_code unregister_command(banker_customer *customer) {
 
     //le client est le premier de la liste
-    if ((banker_customer *)customer->prev == NULL) {
+    if (customer->prev == NULL) {
         //il n'y a qu'un client
-        if ((banker_customer *)customer->next == NULL) goto end;
+        if (customer->next == NULL) goto end;
 
         //il y a plus d'un client
-        else (banker_customer *)customer->next->prev = NULL;
+        else customer->next->prev = NULL;
     }
 
     //le client n'est pas premier de la liste
     else {
         //le client est dernier de la liste
-        if ((banker_customer *)customer->next == NULL) (banker_customer *)customer->prev->next = NULL;
+        if (customer->next == NULL) customer->prev->next = NULL;
 
         //le client n'est ni dernier ni premier
         else {
-            (banker_customer *)customer->prev->next = next;
-            (banker_customer *)customer->next->prev = prev;
+            //customer->prev->next = next; // ??
+           // customer->next->prev = prev; // ??
         }
     }
 
@@ -1021,13 +1040,12 @@ void run_shell() {
         if (strlen(line) == 0) continue;
 
         if (HAS_ERROR(create_command_chain(line, &head))) goto bot;
-        evaluate_whole_chain(&head);
+        evaluate_whole_chain(head);
         for(int i = 0; i < conf->ressources_count; i++) {
             printf("%d, ", head->max_resources[i]);
         }
         printf("\n");
         free(line);
-        printf("get there.\n");
         banker_customer *test = register_command(head);
         f = head->command;
         if (head->background) {
