@@ -855,9 +855,8 @@ error_code unregister_command(banker_customer *customer) {
 
         //le client n'est ni dernier ni premier
         else {
-            // TODO qu'est-ce que c'est ??
-            customer->prev->next = next; // ??
-            customer->next->prev = prev; // ??
+           customer->prev->next = customer->next;
+           customer->next->prev = customer->prev;
         }
     }
 
