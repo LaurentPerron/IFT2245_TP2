@@ -82,6 +82,42 @@ typedef struct {
 // Configuration globale
 configuration *conf = NULL;
 
+
+//Fonctions de libération de mémoire
+void freeStringArray(char **arr) {
+    if (arr != NULL) {
+        for (int i = 0; arr[i] != NULL; i++) {
+            free(arr[i]);
+        }
+    }
+    free(arr);
+}
+
+command *freeAndNext(command *current) {
+    if (current == NULL) return current;
+
+    command *next = current->next;
+    freeStringArray(current->call);
+    free(current);
+    return next;
+}
+
+void freeCommands(command *head) {
+    command *current = head;
+    while (current != NULL) current = freeAndNext(current);
+}
+
+void freeConfiguration(configuration *config) {
+    if (config == NULL) return;
+
+    if (config->commands != NULL) {
+        freeStringArray(config->commands);
+    }
+    if (config->command_caps != NULL) free(conf->command_caps);
+    free(config);
+}
+
+
 /**
  * Lis une ligne du shell.
  * @param out variable dans laquelle la ligne est enregistrée.
@@ -119,25 +155,6 @@ error_code readLine(char **out) {
     }
     out[0] = line;
     return 0;
-}
-
-void freeStringArray(char **arr) {
-    if (arr != NULL) {
-        for (int i = 0; arr[i] != NULL; i++) {
-            free(arr[i]);
-        }
-    }
-    free(arr);
-}
-
-void freeConfiguration(configuration *config) {
-        if (config == NULL) return;
-
-        if (config->commands != NULL) {
-            freeCommands(config->commands);
-        }
-        if (config->command_caps != NULL) free(conf->command_caps);
-        free(config);
 }
 
 error_code parse_first_line(const char *line) {
@@ -366,20 +383,6 @@ error_code parse_first_line_OLD(char *line) {
     free(all_caps);
     freeConfiguration(conf);
     return ERROR;
-}
-
-command *freeAndNext(command *current) {
-    if (current == NULL) return current;
-
-    command *next = current->next;
-    freeStringArray(current->call);
-    free(current);
-    return next;
-}
-
-void freeCommands(command *head) {
-    command *current = head;
-    while (current != NULL) current = freeAndNext(current);
 }
 
 #define FS_CMDS_COUNT 10
@@ -751,64 +754,35 @@ int *_available = NULL;
 
 
 /**
- * Cette fonction enregistre une chaîne de commande pour être exécutée
+ * Cette fonction enregistre une chaîne de commande pour être exécutée.
  * Elle retourne NULL si la chaîne de commande est déjà enregistrée ou
  * si une erreur se produit pendant l'exécution.
  * @param head la tête de la chaîne de commande
  * @return le pointeur vers le compte client retourné
  */
 banker_customer *register_command(command_head *head) {
-    banker_customer *customers = (banker_customer *) malloc(sizeof(banker_customer));
-    if (customers == NULL) {
-        free(customers);
+    banker_customer *customer = (banker_customer *) malloc(sizeof(banker_customer));
+    if (customer == NULL) {
+        free(customer);
         goto error;
     }
-    customers->head = head;
-    customers->prev = NULL;
-    customers->current_resources = 0;
-    customers->depth = 0;
 
-    //on cherche le nombre de commandes total
-    command *current = (command *) malloc(sizeof(command));
-    if (current == NULL) {
-        free(customers);
-        free(current);
+    customer->head = head;
+    customer->next = NULL;
+    customer->prev = NULL;
+    customer->depth = 0;
+    int *current_ressources = malloc(sizeof(int) * head->max_resources_count);
+    if (current_ressources == NULL) {
+        free(customer);
+        free(current_ressources);
         goto error;
     }
-    current = head->command;
-    int count = 0;
-    while (current != NULL) {
-        count++;
-        current = current->next;
-    }
-    free(current);
 
-    //on crée la liste chaînée
-    int depth = 1;
-    for (int i=0; i<count; i++) {
-        banker_customer *temp = (banker_customer *) malloc(sizeof(banker_customer));
-        if (temp ==NULL) {
-            free(customers);
-            free(temp);
-            goto error;
-        }
-        customers->next = temp;
-        temp->head = head;
-        temp->prev = customers;
-        temp->current_resources = 0;
-        temp->depth = depth;
-
-        depth++;
-        customers = temp;
-    }
-    while (customers->prev != NULL) {
-        customers = customers->prev;
-    }
-    return customers;
+    return(customer);
 
     error:
-    printf("An error has occured.\n");
-    exit(-1);
+    return NULL;
+
 }
 
 /**
@@ -826,18 +800,18 @@ error_code unregister_command(banker_customer *customer) {
         if ((banker_customer *)customer->next == NULL) goto end;
 
         //il y a plus d'un client
-        else (banker_customer *)customer->next->prev = NULL;
+        else customer->next->prev = NULL;
     }
 
     //le client n'est pas premier de la liste
     else {
         //le client est dernier de la liste
-        if ((banker_customer *)customer->next == NULL) (banker_customer *)customer->prev->next = NULL;
+        if ((banker_customer *)customer->next == NULL) customer->prev->next = NULL;
 
         //le client n'est ni dernier ni premier
         else {
-            (banker_customer *)customer->prev->next = next;
-            (banker_customer *)customer->next->prev = prev;
+            customer->prev->next = customer->next;
+            customer->next->prev = customer->prev;
         }
     }
 
@@ -891,7 +865,7 @@ void *banker_thread_run() {
  * @return un code d'erreur
  */
 error_code request_resource(banker_customer *customer, int cmd_depth) {
-    return NO_ERROR;
+
 }
 
 /**
@@ -1003,6 +977,8 @@ void *runner(void *arg) {
     command_head *h;
     h = (command_head *)arg;
     callCommands(h->command);
+    free(arg);
+    freeCommands(h->command);
     pthread_exit(0);
 }
 /**
@@ -1027,8 +1003,10 @@ void run_shell() {
         }
         printf("\n");
         free(line);
-        printf("get there.\n");
+
+        //test
         banker_customer *test = register_command(head);
+
         f = head->command;
         if (head->background) {
             command_head *arg = head;
@@ -1043,11 +1021,10 @@ void run_shell() {
             return;
         }
     }
-    toptop:
-    freeCommands(f);
-    free(head);
     bot:
     free(line);
+    toptop:
+    free(_available);
     top:
     printf("An error has occured");
     exit(-1);
