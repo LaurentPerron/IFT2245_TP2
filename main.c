@@ -603,7 +603,6 @@ error_code evaluate_whole_chain(command_head *head) {
 // ---------------------------------------------------------------------------------------------------------------------
 
 pthread_t banker_tid;
-int stop_banker = 0;
 static banker_customer *first;
 static pthread_mutex_t *register_mutex = NULL;
 static pthread_mutex_t *available_mutex = NULL;
@@ -697,9 +696,10 @@ error_code unregister_command(banker_customer *customer) {
     if (customer->prev == NULL) {
         //il n'y a qu'un client
         if (customer->next == NULL) {
+            free(first->current_resources);
             free(first);
             first = NULL;
-            goto end;
+            return NO_ERROR;
         }
 
         //il y a plus d'un client
@@ -722,6 +722,7 @@ error_code unregister_command(banker_customer *customer) {
     }
 
     end:
+    free(customer->current_resources);
     free(customer);
     return NO_ERROR;
 }
@@ -814,12 +815,14 @@ void call_bankers(banker_customer *customer) {
         current = current->next;
     }
     finish = (int *)malloc(sizeof(int) * finish_len);
+    // TODO verifier si == NULL
     safe_state = bankers(work, finish);
     // TODO trouver quelque chose a faire avec safe_state...
     if(safe_state) {
         pthread_mutex_unlock(customer->head->mutex);
     }
-
+    free(work);
+    free(finish);
 }
 
 /**
@@ -831,7 +834,6 @@ void call_bankers(banker_customer *customer) {
 void *banker_thread_run() {
     // TODO a tester et paufiner
     while(1) {
-        if(stop_banker) break;
         if (first == NULL) {
             sleep(1);
             continue;
@@ -846,7 +848,6 @@ void *banker_thread_run() {
         unregister_command(customer);
         pthread_mutex_unlock(register_mutex);
     }
-    return NULL;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -929,8 +930,7 @@ error_code init_shell() {
  * et de votre programme.
  */
 void close_shell() {
-    stop_banker = 1;
-    pthread_join(banker_tid, NULL);
+    pthread_cancel(banker_tid);
     free(_available);
     free(register_mutex);
     free(available_mutex);
@@ -1078,7 +1078,6 @@ void run_shell() {
     bot:
     free(line);
     toptop:
-    free(_available);
     top:
     printf("An error has occured");
     exit(-1);
@@ -1103,6 +1102,7 @@ int main(void) {
     conf = NULL;
     if (HAS_NO_ERROR(init_shell())) {
         run_shell();
+        printf("Shell closed.\n");
         close_shell();
     } else {
         printf("Error while executing the shell.");
