@@ -609,6 +609,7 @@ static pthread_mutex_t *available_mutex = NULL;
 // Do not access directly!
 // TODO use mutexes when changing or reading _available!
 int *_available = NULL;
+int stop_banker = 0;
 
 
 /**
@@ -628,7 +629,8 @@ banker_customer *register_command(command_head *head) {
     customer->head = head;
     customer->next = NULL;
     customer->prev = NULL;
-    customer->depth = 0;
+    //customer->depth = 0;
+    customer->depth = -1;
     customer->current_resources = (int *)malloc(sizeof(int) * head->max_resources_count);
     if (customer->current_resources == NULL) {
         free(customer->current_resources);
@@ -651,7 +653,7 @@ banker_customer *register_command(command_head *head) {
     free(current);
 
     //on crée la liste chaînée
-    int depth = 1;
+    //int depth = 1;
     for (int i=1; i<count; i++) {
         banker_customer *temp = (banker_customer *) malloc(sizeof(banker_customer));
         if (temp ==NULL) {
@@ -668,9 +670,10 @@ banker_customer *register_command(command_head *head) {
             free(temp);
             goto error;
         }
-        temp->depth = depth;
+       //temp->depth = depth;
+        temp->depth = -1;
 
-        depth++;
+        //depth++;
         customer = temp;
     }
 
@@ -834,8 +837,9 @@ void call_bankers(banker_customer *customer) {
 void *banker_thread_run() {
     // TODO a tester et paufiner
     while(1) {
+        if(stop_banker) break;
         if (first == NULL) {
-            sleep(1);
+            //sleep(1);
             continue;
         }
         pthread_mutex_lock(register_mutex);
@@ -848,6 +852,7 @@ void *banker_thread_run() {
         unregister_command(customer);
         pthread_mutex_unlock(register_mutex);
     }
+    pthread_exit(0);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -930,7 +935,8 @@ error_code init_shell() {
  * et de votre programme.
  */
 void close_shell() {
-    pthread_cancel(banker_tid);
+    stop_banker = 1;
+    pthread_join(banker_tid, 0);
     free(_available);
     free(register_mutex);
     free(available_mutex);
@@ -1023,11 +1029,10 @@ void *runner(void *arg) {
         current->next = register_command(h);
     }
     pthread_mutex_unlock(register_mutex);
-    pthread_mutex_lock(h->mutex); // Auto-block
-
-    // Demande des ressources
 
     /**** Fin section critique ****/
+
+    pthread_mutex_lock(h->mutex);
     callCommands(h->command);
     //free(arg);
     free(h->mutex);
@@ -1064,6 +1069,27 @@ void run_shell() {
             command_head *arg = head;
             pthread_create(&tid, NULL, runner, (void *)arg);
         } else {
+            pthread_mutex_unlock(available_mutex); // Laisse autres tester
+            pthread_mutex_unlock(register_mutex); // Laisse autres tester
+            pthread_mutex_lock(head->mutex); // Auto-block
+            pthread_mutex_lock(register_mutex);
+
+            /**** Section critique ****/
+
+            // Enregistrement de la commande
+            if(first == NULL) {
+                first = register_command(head);
+            } else {
+                banker_customer *current = first;
+                while(current->next != NULL) {
+                    current = current->next;
+                } // va s'enregistrer a la fin
+                current->next = register_command(head);
+            }
+            pthread_mutex_unlock(register_mutex);
+
+            /**** Fin Section critique ****/
+            pthread_mutex_lock(head->mutex);
             exit_code = callCommands(f);
             freeCommands(f);
             free(head->mutex);
