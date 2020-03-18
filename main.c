@@ -844,8 +844,12 @@ void *banker_thread_run() {
         }
         pthread_mutex_lock(register_mutex);
         banker_customer *customer = first;
-        while(customer->depth < 0) {
+        while(customer != NULL && customer->depth < 0) {
             customer = customer->next;
+        }
+        if(customer == NULL) {
+            pthread_mutex_unlock(register_mutex);
+            continue;
         }
         // Quand on a trouver un client on appel le banquier
         call_bankers(customer);
@@ -868,19 +872,13 @@ void *banker_thread_run() {
  * @return un code d'erreur
  */
 error_code request_resource(banker_customer *customer, int cmd_depth) {
-    // TODO qui appel cette fonction ?
     // Attend que ce soit son tour
-    pthread_mutex_lock(customer->head->mutex);
+    pthread_mutex_lock(register_mutex);
 
-    banker_customer *c = customer;
-    command *com = customer->head->command;
-    // Parcours jusqu'a arriver au depth voulu
-    for(int i = 0; i != cmd_depth; i++) {
-        c = c->next;
-        com = com->next;
-    }
-    // TODO demander des ressources
+    // demande des ressources
+    customer->depth = cmd_depth;
 
+    pthread_mutex_unlock(register_mutex);
     return NO_ERROR;
 }
 
@@ -978,8 +976,13 @@ int callCommand(command *current) {
 }
 
 
-error_code callCommands(command *current) {
+error_code callCommands(banker_customer *customer, command *current, int cmd_depth) {
+    // TODO Mutex ne semblent pas fonctionner ainsi
     if (current == NULL || current->call == NULL) return 0;
+    pthread_mutex_unlock(customer->head->mutex);
+    request_resource(customer, cmd_depth);
+    pthread_mutex_lock(customer->head->mutex);
+    pthread_mutex_lock(customer->head->mutex);
 
     int ret = callCommand(current);
     if (ret == 7) return 7;
@@ -994,7 +997,7 @@ error_code callCommands(command *current) {
         case BIDON:
             return 0;
         case AND:
-            if (ret) return callCommands(next);
+            if (ret) return callCommands(customer->next, next, ++cmd_depth);
             return 0;
         case OR:
             if (ret) {
@@ -1002,7 +1005,7 @@ error_code callCommands(command *current) {
                 while (next != NULL && (next->op == OR || next->op == NONE)) next = next->next;
                 if (next != NULL && next->op == AND) next = next->next;
             }
-            return callCommands(next);
+            return callCommands(customer->next, next, ++cmd_depth);
     }
 }
 
@@ -1010,31 +1013,33 @@ void *runner(void *arg) {
     command_head *h;
     h = (command_head *)arg;
     // Enregistre d'abord la commande
-    //pthread_mutex_lock(h->mutex); // marche
     pthread_mutex_unlock(available_mutex); // Laisse autres tester
     pthread_mutex_unlock(register_mutex); // Laisse autres tester
     pthread_mutex_lock(h->mutex); // Auto-block
     pthread_mutex_lock(register_mutex);
-
     /**** Section critique ****/
 
     // Enregistrement de la commande
+    banker_customer *customer;
     if(first == NULL) {
-        first = register_command(h);
+        customer = register_command(h);
+        first = customer;
     } else {
         banker_customer *current = first;
         while(current->next != NULL) {
             current = current->next;
         } // va s'enregistrer a la fin
-        current->next = register_command(h);
+        customer = register_command(h);
+        current->next = customer;
     }
     pthread_mutex_unlock(register_mutex);
-
     /**** Fin section critique ****/
+    int cmd_depth = 0;
+    callCommands(customer, h->command, cmd_depth);
+    pthread_mutex_unlock(h->mutex);
 
-    pthread_mutex_lock(h->mutex);
-    callCommands(h->command);
-    //free(arg);
+    // Desenregistrer le client
+
     free(h->mutex);
     freeCommands(h->command);
     free(h);
@@ -1071,26 +1076,30 @@ void run_shell() {
         } else {
             pthread_mutex_unlock(available_mutex); // Laisse autres tester
             pthread_mutex_unlock(register_mutex); // Laisse autres tester
-            pthread_mutex_lock(head->mutex); // Auto-block
+            pthread_mutex_lock(head->mutex);
             pthread_mutex_lock(register_mutex);
 
             /**** Section critique ****/
 
             // Enregistrement de la commande
+            banker_customer *customer;
             if(first == NULL) {
-                first = register_command(head);
+                customer = register_command(head);
+                first = customer;
             } else {
                 banker_customer *current = first;
                 while(current->next != NULL) {
                     current = current->next;
                 } // va s'enregistrer a la fin
-                current->next = register_command(head);
+                customer = register_command(head);
+                current->next = customer;
             }
             pthread_mutex_unlock(register_mutex);
 
             /**** Fin Section critique ****/
-            pthread_mutex_lock(head->mutex);
-            exit_code = callCommands(f);
+            int depth = 0;
+            exit_code = callCommands(customer, f, depth);
+            pthread_mutex_unlock(head->mutex);
             freeCommands(f);
             free(head->mutex);
             free(head);
