@@ -567,7 +567,7 @@ error_code count_ressources(command_head *head, command *command_block) {
 error_code evaluate_whole_chain(command_head *head) {
     int len = (int)conf->ressources_count;
     head->max_resources_count = len;
-    int max_ressources[len];
+    int *max_ressources = (int *)malloc(sizeof(int) * len);
     for(int i = 0; i < len; i++) {
         max_ressources[i] = 0;
     }
@@ -607,7 +607,6 @@ static banker_customer *first;
 static pthread_mutex_t *register_mutex = NULL;
 static pthread_mutex_t *available_mutex = NULL;
 // Do not access directly!
-// TODO use mutexes when changing or reading _available!
 int *_available = NULL;
 int stop_banker = 0;
 
@@ -738,7 +737,7 @@ error_code unregister_command(banker_customer *customer) {
  * @return
  */
 int bankers(int *work, int *finish) {
-    // TODO verifier algo du banquier
+    //print("into banker\n");
     // 1.
     // Already initialize
     command *c;
@@ -758,23 +757,14 @@ int bankers(int *work, int *finish) {
                 current = current->next;
             }
 
-            // On trouve la commande correspondante et le tableau des ressources requises
-            c = current->head->command;
-            for(int k = 0; k < current->depth; k++) {
-                c = c->next;
-            }
-
             // Creation de neaded
-            int *neaded = c->ressources;
-            for(int o = 0; o < conf->ressources_count; o++) {
-                neaded[o] -= current->current_resources[o];
-            }
+            int *neaded = current->current_resources;
 
             // Est-ce qu'on a besoin de trop de ressources ?
             for(int l = 0; l < conf->ressources_count; l++) {
                 if(neaded[l] > work[l]) goto BREAK;
             }
-            // 3.
+            // 3. on libere les ressources occupes
             for(int m = 0; m < conf->ressources_count; m++) {
                 work[m] += current->current_resources[m];
             }
@@ -802,12 +792,22 @@ int bankers(int *work, int *finish) {
  * @param customer
  */
 void call_bankers(banker_customer *customer) {
-    // TODO faire des changements a available selon le resultat
+    //print("into call_bankers\n");
+    pthread_mutex_lock(available_mutex);
+    // On allou les ressources provisoirement au client
+    command * c = customer->head->command;
+    for(int j = 0; j < customer->depth; j++) {
+        c = c->next;
+    }
+    customer->current_resources = memcpy(customer->current_resources, c->ressources, sizeof(int) * conf->ressources_count);
+    // On fait les changements provisoires a available
+    for(int i = 0; i < conf->ressources_count; i ++) {
+        _available[i] -= customer->current_resources[i];
+    }
     int safe_state;
     int *finish;
     int len = (int)conf->ressources_count;
     int *work = (int *)malloc(sizeof(int) * len);
-    pthread_mutex_lock(available_mutex);
     work = memcpy(work, _available, sizeof(int) * len);
 
     int finish_len = 0;
@@ -820,10 +820,14 @@ void call_bankers(banker_customer *customer) {
     finish = (int *)malloc(sizeof(int) * finish_len);
     // TODO verifier si == NULL
     safe_state = bankers(work, finish);
-    // TODO trouver quelque chose a faire avec safe_state...
     if(safe_state) {
         pthread_mutex_unlock(customer->head->mutex);
+    } else {
+        for(int k = 0; k < conf->ressources_count; k++) {
+            _available += customer->current_resources[k];
+        }
     }
+    pthread_mutex_unlock(available_mutex);
     free(work);
     free(finish);
 }
@@ -835,7 +839,6 @@ void call_bankers(banker_customer *customer) {
  * @return
  */
 void *banker_thread_run() {
-    // TODO a tester et paufiner
     while(1) {
         if(stop_banker) break;
         if (first == NULL) {
@@ -852,7 +855,14 @@ void *banker_thread_run() {
             continue;
         }
         // Quand on a trouver un client on appel le banquier
+        pthread_mutex_unlock(available_mutex);
         call_bankers(customer);
+        pthread_mutex_lock(available_mutex);
+        // La commande est appelee, alors on redonne les ressources a available
+        for(int i = 0; i < conf->ressources_count; i++) {
+            _available[i] += customer->current_resources[i];
+        }
+        pthread_mutex_unlock(available_mutex);
         unregister_command(customer);
         pthread_mutex_unlock(register_mutex);
     }
@@ -872,6 +882,36 @@ void *banker_thread_run() {
  * @return un code d'erreur
  */
 error_code request_resource(banker_customer *customer, int cmd_depth) {
+    //print("Into request_ressources\n");
+    // Verifie d'abord si on demande trop de ressources
+
+    int k = customer->head->max_resources[0];
+    if(customer->head->max_resources[0] > conf->file_system_cap) {
+        print("oh oh !\n");
+        return ERROR;
+    }
+    k = customer->head->max_resources[1];
+    if(customer->head->max_resources[1] > conf->network_cap) {
+        print("oh oh !\n");
+        return ERROR;
+    }
+    k = customer->head->max_resources[2];
+    if(customer->head->max_resources[2] > conf->system_cap) {
+        print("oh oh !\n");
+        return ERROR;
+    }
+    int j = 3;
+    for(int i = 0; i < conf->command_count; i++) {
+        if(customer->head->max_resources[j++] > conf->command_caps[i]) {
+            print("oh oh !\n");
+            return ERROR;
+        }
+    }
+    k = customer->head->max_resources[j];
+    if (k > conf->any_cap) {
+        print("oh oh !\n");
+        return ERROR;
+    }
     // Attend que ce soit son tour
     pthread_mutex_lock(register_mutex);
 
@@ -942,6 +982,7 @@ void close_shell() {
 }
 
 int callCommand(command *current) {
+    //print("into callCommand\n");
     if (current->count <= 0) return 1;
     if (strcmp(current->call[0], "exit") == 0) return 7;
 
@@ -977,10 +1018,10 @@ int callCommand(command *current) {
 
 
 error_code callCommands(banker_customer *customer, command *current, int cmd_depth) {
-    // TODO Mutex ne semblent pas fonctionner ainsi
+    //print("into callCommands\n");
     if (current == NULL || current->call == NULL) return 0;
     pthread_mutex_unlock(customer->head->mutex);
-    request_resource(customer, cmd_depth);
+    if(HAS_ERROR(request_resource(customer, cmd_depth))) return NO_ERROR; // Pas d'execution
     pthread_mutex_lock(customer->head->mutex);
     pthread_mutex_lock(customer->head->mutex);
 
@@ -1013,8 +1054,6 @@ void *runner(void *arg) {
     command_head *h;
     h = (command_head *)arg;
     // Enregistre d'abord la commande
-    pthread_mutex_unlock(available_mutex); // Laisse autres tester
-    pthread_mutex_unlock(register_mutex); // Laisse autres tester
     pthread_mutex_lock(h->mutex); // Auto-block
     pthread_mutex_lock(register_mutex);
     /**** Section critique ****/
@@ -1062,10 +1101,10 @@ void run_shell() {
 
         if (HAS_ERROR(create_command_chain(line, &head))) goto bot;
         evaluate_whole_chain(head);
-        for(int i = 0; i < conf->ressources_count; i++) {
-            printf("%d, ", head->max_resources[i]);
+        for(int i = 0; i < head->max_resources_count; i++) {
+            print("%d, ", head->max_resources[i]);
         }
-        printf("\n");
+        print("\n");
         free(line);
         //test
         //banker_customer *customer = register_command(head);
@@ -1074,8 +1113,6 @@ void run_shell() {
             command_head *arg = head;
             pthread_create(&tid, NULL, runner, (void *)arg);
         } else {
-            pthread_mutex_unlock(available_mutex); // Laisse autres tester
-            pthread_mutex_unlock(register_mutex); // Laisse autres tester
             pthread_mutex_lock(head->mutex);
             pthread_mutex_lock(register_mutex);
 
