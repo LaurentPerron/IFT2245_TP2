@@ -385,7 +385,7 @@ error_code create_command_chain(char *line, command_head **result) {
     command *current = NULL;
     command *head = NULL;
     h = (command_head *)malloc(sizeof(command_head));
-    // TODO Regarder si == -1
+    if(h == NULL) return ERROR;
 
     int escaped = 0;
 
@@ -520,10 +520,10 @@ error_code create_command_chain(char *line, command_head **result) {
     }
     h->command = head;
     h->mutex = malloc(sizeof(pthread_mutex_t));
-    // TODO verifier si == NULL
+    if (h->mutex== NULL) goto error;
     pthread_mutex_init(h->mutex, NULL);
     result[0] = h;
-    return 0;
+    return NO_ERROR;
 
     error:
     free(wordPtr);
@@ -532,7 +532,6 @@ error_code create_command_chain(char *line, command_head **result) {
     freeAndNext(c);
     freeCommands(head);
     return ERROR;
-    return NO_ERROR;
 }
 
 /**
@@ -547,7 +546,7 @@ error_code count_ressources(command_head *head, command *command_block) {
     unsigned int len;
     len = conf->ressources_count;
     int *ressources = (int *)malloc(sizeof(int) * len);
-    // TODO verifier == -1
+    if(ressources == NULL) return ERROR;
     for(int i = 0; i < len; i++) {
         ressources[i] = 0;
     }
@@ -632,32 +631,23 @@ banker_customer *register_command(command_head *head) {
     customer->depth = -1;
     customer->current_resources = (int *)malloc(sizeof(int) * head->max_resources_count);
     if (customer->current_resources == NULL) {
-        free(customer->current_resources);
         free(customer);
         goto error;
     }
-    command *current = (command *) malloc(sizeof(command));
-
-    if (current == NULL) {
-        free(customer);
-        free(current);
-    }
-    current = head->command;
+    command *current = head->command;
     int count = 0;
 
     while (current != NULL) {
         count++;
         current = current->next;
     }
-    free(current);
 
     //on crée la liste chaînée
     //int depth = 1;
     for (int i=1; i<count; i++) {
         banker_customer *temp = (banker_customer *) malloc(sizeof(banker_customer));
-        if (temp ==NULL) {
+        if (temp == NULL) {
             free(customer);
-            free(temp);
             goto error;
         }
         customer->next = temp;
@@ -767,32 +757,34 @@ int bankers(int *work, int *finish) {
             }
 
             // Creation de neaded
-            int *neaded = c->ressources;
+            int *needed = (int *)malloc(sizeof(int) * conf->ressources_count);
+            needed = memcpy(needed, c->ressources, conf->ressources_count * sizeof(int));
 
             // Si on a deja pre-accorde les ressources, alors on les soustrait
             for(int n = 0; n < conf->ressources_count; n++) {
-                neaded[n] -= current->current_resources[n];
+                needed[n] -= current->current_resources[n];
             }
             // Est-ce qu'on a besoin de trop de ressources ?
+            int stop = 0;
             for(int l = 0; l < conf->ressources_count; l++) {
-                if(neaded[l] > work[l]) goto BREAK;
+                if(needed[l] > work[l]) stop = 1;
+            }
+            if (stop == 1) {
+                free(needed);
+                break;
             }
             // 3. on libere les ressources occupes
             for(int m = 0; m < conf->ressources_count; m++) {
                 work[m] += current->current_resources[m];
             }
+            free(needed);
             finish[i] = 1;
-            continue;
-
-            BREAK:
-            break;
         } // else continue
     }
     // 4.
     for(int n =  0; n < len; n++) {
         if(finish[n] == 0) return 0;
     }
-
     return 1;
 }
 
@@ -806,17 +798,21 @@ int bankers(int *work, int *finish) {
  */
 void call_bankers(banker_customer *customer) {
     pthread_mutex_lock(available_mutex);
+    int safe_state;
+    int *finish;
     command * c = customer->head->command;
     for(int j = 0; j < customer->depth; j++) {
         c = c->next;
     }
-    customer->current_resources = memcpy(customer->current_resources, c->ressources, sizeof(int) * conf->ressources_count);
+    memcpy(customer->current_resources, c->ressources, sizeof(int) * conf->ressources_count);
+
     // Assignation provisoire des ressources
     for(int i = 0; i < conf->ressources_count; i++) {
         _available[i] -= customer->current_resources[i];
+        //print("%d, ", customer->current_resources[i]);
     }
-    int safe_state;
-    int *finish;
+   //print("\n");
+
     int len = (int)conf->ressources_count;
     int *work = (int *)malloc(sizeof(int) * len);
     work = memcpy(work, _available, sizeof(int) * len);
@@ -830,12 +826,17 @@ void call_bankers(banker_customer *customer) {
         current = current->next;
     }
     finish = (int *)malloc(sizeof(int) * finish_len);
-    // TODO verifier si == NULL
+    if(finish == NULL) return;
+    // On rempli finish avec des 0.
+    for(int k = 0; k < finish_len; k++) {
+        finish[k] = 0;
+    }
+
     safe_state = bankers(work, finish);
     if(safe_state) {
         // On commence l'execution et on enleve le client
-        pthread_mutex_unlock(customer->head->mutex);
         unregister_command(customer);
+        pthread_mutex_unlock(customer->head->mutex);
     } else {
         // On retire le
         for(int j = 0; j < conf->ressources_count; j++) {
@@ -862,7 +863,6 @@ void *banker_thread_run() {
             continue;
         }
         pthread_mutex_lock(register_mutex);
-        //banker_customer *customer = first;
         while(customer != NULL && customer->depth < 0) {
             customer = customer->next;
         }
@@ -873,6 +873,8 @@ void *banker_thread_run() {
         }
         // Quand on a trouver un client on appel le banquier
         call_bankers(customer);
+        // Et on passe au prochain
+        customer = customer->next;
         // Le client est alors retiré de la file
         pthread_mutex_unlock(register_mutex);
     }
@@ -894,7 +896,6 @@ void *banker_thread_run() {
 error_code request_resource(banker_customer *customer, int cmd_depth) {
     // Verifie d'abord si on demande trop de ressources
     if(customer->head->max_resources[0] > conf->file_system_cap || customer->head->max_resources[0] < 0) {
-        print("oh oh !\n");
         return ERROR;
     }
     if(customer->head->max_resources[1] > conf->network_cap || customer->head->max_resources[1] < 0) {
@@ -902,18 +903,15 @@ error_code request_resource(banker_customer *customer, int cmd_depth) {
         return ERROR;
     }
     if(customer->head->max_resources[2] > conf->system_cap || customer->head->max_resources[2] < 0) {
-        print("oh oh !\n");
         return ERROR;
     }
     int j = 3;
     for(int i = 0; i < conf->command_count; i++) {
         if(customer->head->max_resources[j] > conf->command_caps[i] || customer->head->max_resources[j++] < 0) {
-            print("oh oh !\n");
             return ERROR;
         }
     }
     if (customer->head->max_resources[j] > conf->any_cap || customer->head->max_resources[j] < 0) {
-        print("oh oh !\n");
         return ERROR;
     }
     // Attend que ce soit son tour
@@ -927,6 +925,43 @@ error_code request_resource(banker_customer *customer, int cmd_depth) {
 }
 
 /**
+ * Fonction utilisee pour liberer les customers
+ * @param customer : la variable globale du premier client (first)
+ * @return un code d'erreur.
+ * */
+error_code freeCustomers(banker_customer *customer) {
+    banker_customer *current = customer;
+    banker_customer *next;
+    while(current != NULL) {
+        next = current->next;
+        free(current->current_resources);
+        free(current);
+        current = next;
+    }
+    return NO_ERROR;
+}
+
+/**
+ * Fonction qui libere les ressource utilisees par une ligne de commande
+ * @param cmd_depth : la profondeur de la ligne de commande
+ * @param customer : le dernier client de la ligne de commande
+ * @return : un code d'erreur
+ * */
+error_code freeRessources(banker_customer *customer, int  cmd_depth) {
+    pthread_mutex_lock(available_mutex);
+    //pthread_mutex_lock(register_mutex);
+    for(int i = 0; i <= cmd_depth; i++) {
+        for(int j = 0; j < conf->ressources_count; j++) {
+            _available[j] += customer->current_resources[j];
+        }
+        customer = customer->prev;
+    }
+    pthread_mutex_unlock(available_mutex);
+    //pthread_mutex_unlock(register_mutex);
+    return NO_ERROR;
+}
+
+/**
  * Utilisez cette fonction pour initialiser votre shell
  * Cette fonction est appelée uniquement au début de l'exécution
  * des tests (et de votre programme).
@@ -934,8 +969,14 @@ error_code request_resource(banker_customer *customer, int cmd_depth) {
 error_code init_shell() {
     char *line;
     register_mutex = malloc(sizeof(pthread_mutex_t));
+    if(register_mutex == NULL) return ERROR;
+
     available_mutex = malloc(sizeof(pthread_mutex_t));
-    // TODO regarder si == -1
+    if(available_mutex == NULL) {
+        free(register_mutex);
+        return ERROR;
+    }
+
     pthread_mutex_init(register_mutex, NULL);
     pthread_mutex_init(available_mutex, NULL);
 
@@ -948,6 +989,7 @@ error_code init_shell() {
         break;
     }
     _available = (int *)malloc(sizeof(int) * conf->ressources_count);
+    if(_available == NULL) goto error;
     int j = 0;
     _available[j++] = conf->file_system_cap;
     _available[j++] = conf->network_cap;
@@ -957,10 +999,11 @@ error_code init_shell() {
     }
     _available[j] = conf->any_cap;
     pthread_create(&banker_tid, NULL, banker_thread_run, NULL);
-    error_code err = NO_ERROR;
-    return err;
+    return NO_ERROR;
 
     error:
+    free(register_mutex);
+    free(available_mutex);
     free(line);
     printf("An error has occured\n");
     exit(-1);
@@ -978,26 +1021,7 @@ void close_shell() {
     free(register_mutex);
     free(available_mutex);
     freeConfiguration(conf);
-}
-
-/**
- * Fonction qui libere les ressource utilisees par une ligne de commande
- * @param cmd_depth : la profondeur de la ligne de commande
- * @param customer : le dernier client de la ligne de commande
- * @return : un code d'erreur
- * */
-
-error_code freeRessources(banker_customer *customer, int  cmd_depth) {
-    pthread_mutex_lock(available_mutex);
-    for(int i = 0; i <= cmd_depth; i++) {
-        for(int j = 0; j < conf->ressources_count; j++) {
-            //if(customer->current_resources[j] < 0) continue;
-            _available[j] += customer->current_resources[j];
-        }
-        customer = customer->prev;
-    }
-    pthread_mutex_unlock(available_mutex);
-    return NO_ERROR;
+    freeCustomers(first);
 }
 
 int callCommand(command *current) {
@@ -1038,7 +1062,7 @@ int callCommand(command *current) {
 error_code callCommands(banker_customer *customer, command *current, int cmd_depth) {
     if (current == NULL || current->call == NULL) return 0;
     pthread_mutex_unlock(customer->head->mutex);
-    if(HAS_ERROR(request_resource(customer, cmd_depth))) return NO_ERROR; // Pas d'execution
+    if(HAS_ERROR(request_resource(customer, cmd_depth))) return ERROR; // Pas d'execution
     pthread_mutex_lock(customer->head->mutex);
     pthread_mutex_lock(customer->head->mutex);
 
@@ -1047,7 +1071,10 @@ error_code callCommands(banker_customer *customer, command *current, int cmd_dep
         freeRessources(customer, cmd_depth);
         return 7;
     }
-    if (ret == -1) return ERROR;
+    if (ret == -1) {
+        freeRessources(customer, cmd_depth);
+        return ERROR;
+    }
 
     operator op = current->op;
     command *next = current->next;
@@ -1098,6 +1125,7 @@ void *runner(void *arg) {
     callCommands(customer, h->command, cmd_depth);
     pthread_mutex_unlock(h->mutex);
 
+    free(h->max_resources);
     free(h->mutex);
     freeCommands(h->command);
     free(h);
@@ -1149,8 +1177,9 @@ void run_shell() {
             int depth = 0;
             exit_code = callCommands(customer, f, depth);
             pthread_mutex_unlock(head->mutex);
-            freeCommands(f);
+            free(head->max_resources);
             free(head->mutex);
+            freeCommands(f);
             free(head);
         }
 
@@ -1175,7 +1204,6 @@ int main(void) {
     if (HAS_NO_ERROR(init_shell())) {
         run_shell();
         close_shell();
-        exit(0);
     } else {
         printf("Error while executing the shell.");
     }
