@@ -157,31 +157,6 @@ error_code readLine(char **out) {
     return 0;
 }
 
-<<<<<<< HEAD
-=======
-void freeStringArray(char **arr) {
-    if (arr != NULL) {
-        for (int i = 0; arr[i] != NULL; i++) {
-            free(arr[i]);
-        }
-    }
-    free(arr);
-}
-
-void freeConfiguration(configuration *config) {
-        if (config == NULL) return;
-
-        if (config->commands != NULL) {
-            for(int i = 0; i < config->command_count; i++) {
-                free(config->commands[i]);
-            }
-            free(config->commands);
-        }
-        if (config->command_caps != NULL) free(conf->command_caps);
-        free(config);
-}
-
->>>>>>> 00093718198f416ab74164185666869f2ef977aa
 error_code parse_first_line(const char *line) {
     char *copy;
     char *first_block;
@@ -928,6 +903,7 @@ error_code init_shell() {
     printf("%d, ", conf->file_system_cap);
     printf("%d, ", conf->network_cap);
     printf("%d, ", conf->system_cap);
+    printf("there's aproblem\n");
     for(int i = 0; i < conf->command_count; i++) {
         printf("%d, ", conf->command_caps[i]);
     }
@@ -1039,17 +1015,7 @@ void run_shell() {
 
         if (HAS_ERROR(create_command_chain(line, &head))) goto bot;
         evaluate_whole_chain(head);
-        for(int i = 0; i < conf->ressources_count; i++) {
-            printf("%d, ", head->max_resources[i]);
-        }
-        printf("\n");
         free(line);
-<<<<<<< HEAD
-
-        //test
-=======
->>>>>>> 00093718198f416ab74164185666869f2ef977aa
-        banker_customer *test = register_command(head);
 
         f = head->command;
         if (head->background) {
