@@ -683,7 +683,6 @@ banker_customer *register_command(command_head *head) {
  * @return un code d'erreur
  */
 error_code unregister_command(banker_customer *customer) {
-    customer->depth = -1; return NO_ERROR;
     //le client est le premier de la liste
     if (customer->prev == NULL) {
         //il n'y a qu'un client
@@ -734,7 +733,7 @@ int bankers(int *work, int *finish) {
     int len = 0;
     banker_customer *current = first;
     while(current != NULL) {
-        if(current->depth > -1) len++;
+        len++;
         current = current->next;
     }
 
@@ -745,10 +744,8 @@ int bankers(int *work, int *finish) {
             int j = 0;
             current = first;
             while(current->next != NULL) {
-                if(current->depth > -1) {
-                    if(j == i) break;
-                    else j++;
-                }
+                if(j == i) break;
+                else j++;
                 current = current->next;
             }
             c = current->head->command;
@@ -822,7 +819,7 @@ void call_bankers(banker_customer *customer) {
     banker_customer *current = first;
     while(current != NULL) {
         // On compte les clients ayant fait une demande
-        if(current->depth > -1) finish_len++;
+        finish_len++;
         current = current->next;
     }
     finish = (int *)malloc(sizeof(int) * finish_len);
@@ -835,8 +832,8 @@ void call_bankers(banker_customer *customer) {
     safe_state = bankers(work, finish);
     if(safe_state) {
         // On commence l'execution et on enleve le client
-        unregister_command(customer);
         pthread_mutex_unlock(customer->head->mutex);
+        customer->depth = -1;
     } else {
         // On retire le
         for(int j = 0; j < conf->ressources_count; j++) {
@@ -919,6 +916,7 @@ error_code request_resource(banker_customer *customer, int cmd_depth) {
 
     // demande des ressources
     customer->depth = cmd_depth;
+    pthread_mutex_lock(customer->head->mutex);
 
     pthread_mutex_unlock(register_mutex);
     return NO_ERROR;
@@ -948,16 +946,20 @@ error_code freeCustomers(banker_customer *customer) {
  * @return : un code d'erreur
  * */
 error_code freeRessources(banker_customer *customer, int  cmd_depth) {
+    banker_customer *current = customer;
+    banker_customer *prev;
+    pthread_mutex_lock(register_mutex);
     pthread_mutex_lock(available_mutex);
-    //pthread_mutex_lock(register_mutex);
     for(int i = 0; i <= cmd_depth; i++) {
         for(int j = 0; j < conf->ressources_count; j++) {
-            _available[j] += customer->current_resources[j];
+            _available[j] += current->current_resources[j];
         }
-        customer = customer->prev;
+        prev = current->prev;
+        unregister_command(current);
+        current = prev;
     }
+    pthread_mutex_unlock(register_mutex);
     pthread_mutex_unlock(available_mutex);
-    //pthread_mutex_unlock(register_mutex);
     return NO_ERROR;
 }
 
@@ -1064,7 +1066,6 @@ error_code callCommands(banker_customer *customer, command *current, int cmd_dep
     pthread_mutex_unlock(customer->head->mutex);
     if(HAS_ERROR(request_resource(customer, cmd_depth))) return ERROR; // Pas d'execution
     pthread_mutex_lock(customer->head->mutex);
-    pthread_mutex_lock(customer->head->mutex);
 
     int ret = callCommand(current);
     if (ret == 7) {
@@ -1101,7 +1102,6 @@ error_code callCommands(banker_customer *customer, command *current, int cmd_dep
 void *runner(void *arg) {
     command_head *h;
     h = (command_head *)arg;
-    pthread_mutex_lock(h->mutex); // Auto-block
     pthread_mutex_lock(register_mutex);
 
     /**** Section critique ****/
@@ -1123,7 +1123,6 @@ void *runner(void *arg) {
 
     int cmd_depth = 0;
     callCommands(customer, h->command, cmd_depth);
-    pthread_mutex_unlock(h->mutex);
 
     free(h->max_resources);
     free(h->mutex);
@@ -1154,7 +1153,6 @@ void run_shell() {
             command_head *arg = head;
             pthread_create(&tid, NULL, runner, (void *)arg);
         } else {
-            pthread_mutex_lock(head->mutex);
             pthread_mutex_lock(register_mutex);
 
             /**** Section critique ****/
@@ -1176,7 +1174,6 @@ void run_shell() {
 
             int depth = 0;
             exit_code = callCommands(customer, f, depth);
-            pthread_mutex_unlock(head->mutex);
             free(head->max_resources);
             free(head->mutex);
             freeCommands(f);
