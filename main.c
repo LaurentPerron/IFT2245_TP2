@@ -728,70 +728,99 @@ error_code unregister_command(banker_customer *customer) {
 int bankers(int *work, int *finish) {
     //print("into banker\n");
     // 1.
-    // Already initialize
-    int *needed;
-    command *c;
-    int len = 0;
+    // Initialize all arrays
+    int result;
+    int n_process = 0;
+    int n_ressources = (int)conf->ressources_count;
+
     banker_customer *current = first;
     while(current != NULL) {
-        len++;
+        if(current->depth == -1) {
+            current = current->next;
+            continue;
+        }
+        current = current->next;
+        n_process++;
+    }
+    int **needed = (int **)malloc(sizeof(int *) * n_process);
+    int **max = (int **)malloc(sizeof(int *) * n_process);
+    int **alloc = (int **)malloc(sizeof(int *) * n_process);
+    int *exec_order = (int *)malloc(sizeof(int) * n_process);
+    for(int i = 0; i < n_process; i++) {
+        needed[i] = (int *)malloc(sizeof(int) * n_ressources);
+        max[i] = (int *)malloc(sizeof(int) * n_ressources);
+        alloc[i] = (int *)malloc(sizeof(int) * n_ressources);
+    }
+
+    current = first;
+    for(int i = 0; i < n_process; i++) {
+        if(current->depth < 0) { // On saute les commandes qui n'ont pas de demandes a l'etude
+            i--;
+        }
+        else {
+            for(int j = 0; j < n_ressources; j++) {
+                alloc[i][j] = current->current_resources[j];
+                max[i][j] = current->head->max_resources[j];
+                needed[i][j] = max[i][j] - alloc[i][j];
+            }
+        }
         current = current->next;
     }
+    int ord = 0;
+    for(int k = 0; k < n_process; k++) {
+        for(int l = 0; l < n_process; l++) {
+            if(finish[l] == 0) {
 
-    // 2.
-    for(int i = 0; i < len; i++) {
+                int stop = 0;
+                for(int m = 0; m < n_ressources; m++) {
+                    if(needed[l][m] > work[m]) {
+                        stop = 1;
+                        break;
+                    }
+                }
+
+                if(stop == 0) {
+                    exec_order[ord++] = l;
+                    finish[l] = 1;
+                    for(int n = 0; n < n_ressources; n++) {
+                        work[n] += alloc[l][n];
+                    }
+                }
+            }
+        }
+    }
+
+    // Safe state found ?
+    for(int i = 0; i < n_process; i++) {
         if(finish[i] == 0) {
-            // On trouve le client correspondant a la position i dans finish
-            int j = 0;
-            current = first;
-            while(current->next != NULL) {
-                if(j == i) break;
-                else j++;
-                current = current->next;
+            // free stuff
+            for(int j = 0; j < n_process; j++) {
+                free(alloc[j]);
+                free(max[j]);
+                free(needed[j]);
             }
-            if (current->depth == -1) {
-                needed = (int *)malloc(sizeof(int) * conf->ressources_count);
-                for(int h = 0; h < conf->ressources_count; h++) {
-                    needed[h] = 0;
-                }
-            } else {
-                c = current->head->command;
-                for(int k = 0; k < current->depth; k++) {
-                    c = c->next;
-                }
-
-                // Creation de neaded
-                needed = (int *)malloc(sizeof(int) * conf->ressources_count);
-                needed = memcpy(needed, c->ressources, conf->ressources_count * sizeof(int));
-
-                // Si on a deja pre-accorde les ressources, alors on les soustrait
-                for(int n = 0; n < conf->ressources_count; n++) {
-                    needed[n] -= current->current_resources[n];
-                }
-            }
-
-            // Est-ce qu'on a besoin de trop de ressources ?
-            int stop = 0;
-            for(int l = 0; l < conf->ressources_count; l++) {
-                if(needed[l] > work[l]) stop = 1;
-            }
-            if (stop == 1) {
-                free(needed);
-                break;
-            }
-            // 3. on libere les ressources occupes
-            for(int m = 0; m < conf->ressources_count; m++) {
-                work[m] += current->current_resources[m];
-            }
+            free(alloc);
+            free(max);
             free(needed);
-            finish[i] = 1;
-        } // else continue
+            free(exec_order);
+            result = 0;
+            return result;
+        }
     }
-    // 4.
-    for(int n =  0; n < len; n++) {
-        if(finish[n] == 0) return 0;
+
+    // Si un safe state on garanti l'ordre d'execution
+    result = exec_order[0];
+    for(int j = 0; j < n_process; j++) {
+        free(alloc[j]);
+        free(max[j]);
+        free(needed[j]);
     }
-    return 1;
+    free(alloc);
+    free(max);
+    free(needed);
+    free(exec_order);
+
+    return result + 1;
 }
 
 /**
@@ -812,9 +841,16 @@ void call_bankers(banker_customer *customer) {
     }
     memcpy(customer->current_resources, c->ressources, sizeof(int) * conf->ressources_count);
 
-    // Assignation provisoire des ressources
+    // Assignation provisoire des ressources de la commande
     for(int i = 0; i < conf->ressources_count; i++) {
         _available[i] -= customer->current_resources[i];
+    }
+
+    // On ajoute aux ressources du client, celles maintenues par les autres elements de sa ligne de commande
+    if(customer->prev != NULL && customer->prev->head == customer->head) {
+        for(int i = 0; i < conf->ressources_count; i++) {
+            customer->current_resources[i] += customer->prev->current_resources[i];
+        }
     }
 
     int len = (int)conf->ressources_count;
@@ -826,8 +862,12 @@ void call_bankers(banker_customer *customer) {
     banker_customer *current = first;
     while(current != NULL) {
         // On compte les clients ayant fait une demande
-        finish_len++;
+        if(current->depth < 0) {
+            current = current->next;
+            continue;
+        }
         current = current->next;
+        finish_len++;
     }
     finish = (int *)malloc(sizeof(int) * finish_len);
     if(finish == NULL) return;
@@ -838,13 +878,27 @@ void call_bankers(banker_customer *customer) {
 
     safe_state = bankers(work, finish);
     if(safe_state) {
-        // On commence l'execution et on enleve le client
-        pthread_mutex_unlock(customer->head->mutex);
-        customer->depth = -1;
+        // On debloque le client
+        current = first;
+        int i = 0;
+        while(current != NULL) {
+            if(current->depth < 0) {
+                current = current->next;
+                continue;
+            } else {
+                i++;
+                if(i == safe_state) {
+                    break;
+                }
+            }
+            current = current->next;
+        }
+        current->depth = -1;
+        pthread_mutex_unlock(current->head->mutex);
     } else {
         // On retire le
         for(int j = 0; j < conf->ressources_count; j++) {
-            _available[j] += customer->current_resources[j];
+            _available[j] += c->ressources[j];
             customer->current_resources[j] = 0;
         }
     }
@@ -957,10 +1011,10 @@ error_code freeRessources(banker_customer *customer, int  cmd_depth) {
     banker_customer *prev;
     pthread_mutex_lock(register_mutex);
     pthread_mutex_lock(available_mutex);
+    for(int j = 0; j < conf->ressources_count; j++) {
+        _available[j] += current->current_resources[j];
+    }
     for(int i = 0; i <= cmd_depth; i++) {
-        for(int j = 0; j < conf->ressources_count; j++) {
-            _available[j] += current->current_resources[j];
-        }
         prev = current->prev;
         unregister_command(current);
         current = prev;
@@ -1124,6 +1178,7 @@ void *runner(void *arg) {
         } // va s'enregistrer a la fin
         customer = register_command(h);
         current->next = customer;
+        customer->prev = current;
     }
     pthread_mutex_unlock(register_mutex);
     /**** Fin section critique ****/
@@ -1175,6 +1230,7 @@ void run_shell() {
                 } // va s'enregistrer a la fin
                 customer = register_command(head);
                 current->next = customer;
+                customer->prev = current;
             }
             pthread_mutex_unlock(register_mutex);
             /**** Fin Section critique ****/
