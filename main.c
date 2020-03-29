@@ -1,3 +1,4 @@
+
 /**
  * William Bach
  * Laurent Perron 1052137
@@ -643,7 +644,6 @@ banker_customer *register_command(command_head *head) {
     }
 
     //on crée la liste chaînée
-    //int depth = 1;
     for (int i=1; i<count; i++) {
         banker_customer *temp = (banker_customer *) malloc(sizeof(banker_customer));
         if (temp == NULL) {
@@ -703,7 +703,7 @@ error_code unregister_command(banker_customer *customer) {
     //le client n'est pas premier de la liste
     else {
         //le client est dernier de la liste
-        if ((banker_customer *)customer->next == NULL) customer->prev->next = NULL;
+        if (customer->next == NULL) customer->prev->next = NULL;
 
         //le client n'est ni dernier ni premier
         else {
@@ -815,9 +815,7 @@ void call_bankers(banker_customer *customer) {
     // Assignation provisoire des ressources
     for(int i = 0; i < conf->ressources_count; i++) {
         _available[i] -= customer->current_resources[i];
-        //print("%d, ", customer->current_resources[i]);
     }
-   //print("\n");
 
     int len = (int)conf->ressources_count;
     int *work = (int *)malloc(sizeof(int) * len);
@@ -1214,3 +1212,4 @@ int main(void) {
         printf("Error while executing the shell.");
     }
 }
+
