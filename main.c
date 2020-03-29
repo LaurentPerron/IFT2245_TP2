@@ -753,7 +753,7 @@ int bankers(int *work, int *finish) {
                 c = c->next;
             }
 
-            // Creation de neaded
+            // Creation de needed
             int *needed = (int *)malloc(sizeof(int) * conf->ressources_count);
             needed = memcpy(needed, c->ressources, conf->ressources_count * sizeof(int));
 
@@ -797,23 +797,26 @@ void call_bankers(banker_customer *customer) {
     pthread_mutex_lock(available_mutex);
     int safe_state;
     int *finish;
+
+    //On retrouve la commande à vérifier
     command * c = customer->head->command;
     for(int j = 0; j < customer->depth; j++) {
         c = c->next;
     }
-    memcpy(customer->current_resources, c->ressources, sizeof(int) * conf->ressources_count);
 
     // Assignation provisoire des ressources
+    memcpy(customer->current_resources, c->ressources, sizeof(int) * conf->ressources_count);
     for(int i = 0; i < conf->ressources_count; i++) {
         _available[i] -= customer->current_resources[i];
     }
 
+    //initialisation de work
     int len = (int)conf->ressources_count;
     int *work = (int *)malloc(sizeof(int) * len);
     work = memcpy(work, _available, sizeof(int) * len);
 
+    //Initialisation de finish
     int finish_len = 0;
-
     banker_customer *current = first;
     while(current != NULL) {
         // On compte les clients ayant fait une demande
@@ -827,6 +830,7 @@ void call_bankers(banker_customer *customer) {
         finish[k] = 0;
     }
 
+    //Appel à bankers
     safe_state = bankers(work, finish);
     if(safe_state) {
         // On commence l'execution et on enleve le client
