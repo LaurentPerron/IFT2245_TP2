@@ -729,6 +729,7 @@ int bankers(int *work, int *finish) {
     //print("into banker\n");
     // 1.
     // Already initialize
+    int *needed;
     command *c;
     int len = 0;
     banker_customer *current = first;
@@ -748,19 +749,28 @@ int bankers(int *work, int *finish) {
                 else j++;
                 current = current->next;
             }
-            c = current->head->command;
-            for(int k = 0; k < current->depth; k++) {
-                c = c->next;
+            if (current->depth == -1) {
+                needed = (int *)malloc(sizeof(int) * conf->ressources_count);
+                for(int h = 0; h < conf->ressources_count; h++) {
+                    needed[h] = 0;
+                }
+            } else {
+                c = current->head->command;
+                for(int k = 0; k < current->depth; k++) {
+                    c = c->next;
+                }
+
+                // Creation de neaded
+                needed = (int *)malloc(sizeof(int) * conf->ressources_count);
+                needed = memcpy(needed, c->ressources, conf->ressources_count * sizeof(int));
+
+
+                // Si on a deja pre-accorde les ressources, alors on les soustrait
+                for(int n = 0; n < conf->ressources_count; n++) {
+                    needed[n] -= current->current_resources[n];
+                }
             }
 
-            // Creation de needed
-            int *needed = (int *)malloc(sizeof(int) * conf->ressources_count);
-            needed = memcpy(needed, c->ressources, conf->ressources_count * sizeof(int));
-
-            // Si on a deja pre-accorde les ressources, alors on les soustrait
-            for(int n = 0; n < conf->ressources_count; n++) {
-                needed[n] -= current->current_resources[n];
-            }
             // Est-ce qu'on a besoin de trop de ressources ?
             int stop = 0;
             for(int l = 0; l < conf->ressources_count; l++) {
