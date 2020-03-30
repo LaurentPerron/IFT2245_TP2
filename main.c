@@ -824,8 +824,8 @@ int bankers(int *work, int *finish) {
  * @param customer
  */
 void call_bankers(banker_customer *customer) {
-    printf("into call_bankers\n");
-    pthread_mutex_lock(available_mutex);
+    //print("into callBanker\n");
+    if(customer == NULL) return;
     int safe_state;
     int *finish;
     command * c = customer->head->command;
@@ -834,6 +834,7 @@ void call_bankers(banker_customer *customer) {
     }
     memcpy(customer->current_resources, c->ressources, sizeof(int) * conf->ressources_count);
 
+    pthread_mutex_lock(available_mutex);
     // Assignation provisoire des ressources de la commande
     for(int i = 0; i < conf->ressources_count; i++) {
         _available[i] -= customer->current_resources[i];
@@ -848,6 +849,8 @@ void call_bankers(banker_customer *customer) {
 
     int len = (int)conf->ressources_count;
     int *work = (int *)malloc(sizeof(int) * len);
+    if(work == NULL) goto end;
+
     work = memcpy(work, _available, sizeof(int) * len);
 
     int finish_len = 0;
@@ -863,7 +866,10 @@ void call_bankers(banker_customer *customer) {
         finish_len++;
     }
     finish = (int *)malloc(sizeof(int) * finish_len);
-    if(finish == NULL) return;
+    if(finish == NULL) {
+        free(work);
+        goto end;
+    }
     // On rempli finish avec des 0.
     for(int k = 0; k < finish_len; k++) {
         finish[k] = 0;
@@ -871,7 +877,7 @@ void call_bankers(banker_customer *customer) {
 
     safe_state = bankers(work, finish);
     if(safe_state > 0) {
-        // On debloque le client
+        // Si le client qui a fait la demande est le premier du safe state trouve, on
         current = first;
         int i = 0;
         while(current != NULL) {
@@ -886,18 +892,29 @@ void call_bankers(banker_customer *customer) {
             }
             current = current->next;
         }
-        current->depth = -1;
-        pthread_mutex_unlock(current->head->mutex);
+        if(current == NULL) goto top;
+        if(current->head != customer->head) goto top;
+
+        customer->depth = -1;
+        pthread_mutex_unlock(customer->head->mutex);
+        free(finish);
+        free(work);
+        goto bottom;
     } else {
         // On retire le
-        for(int j = 0; j < conf->ressources_count; j++) {
-            _available[j] += c->ressources[j];
-            customer->current_resources[j] = 0;
-        }
+        goto top;
+
     }
-    pthread_mutex_unlock(available_mutex);
-    free(work);
+    top:
     free(finish);
+    free(work);
+    end:
+    for(int j = 0; j < conf->ressources_count; j++) {
+        _available[j] += c->ressources[j];
+        customer->current_resources[j] = 0;
+    }
+    bottom:
+    pthread_mutex_unlock(available_mutex);
 }
 
 /**
