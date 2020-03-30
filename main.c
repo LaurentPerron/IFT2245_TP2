@@ -793,23 +793,15 @@ int bankers(int *work, int *finish) {
     // Safe state found ?
     for(int i = 0; i < n_process; i++) {
         if(finish[i] == 0) {
-            // free stuff
-            for(int j = 0; j < n_process; j++) {
-                free(alloc[j]);
-                free(max[j]);
-                free(needed[j]);
-            }
-            free(alloc);
-            free(max);
-            free(needed);
-            free(exec_order);
-            result = 0;
-            return result;
+            result = -1;
+            goto end
         }
     }
 
     // Si un safe state on garanti l'ordre d'execution
     result = exec_order[0];
+
+    end:
     for(int j = 0; j < n_process; j++) {
         free(alloc[j]);
         free(max[j]);
@@ -877,7 +869,7 @@ void call_bankers(banker_customer *customer) {
     }
 
     safe_state = bankers(work, finish);
-    if(safe_state) {
+    if(safe_state > 0) {
         // On debloque le client
         current = first;
         int i = 0;
