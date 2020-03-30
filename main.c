@@ -877,7 +877,7 @@ void call_bankers(banker_customer *customer) {
 
     safe_state = bankers(work, finish);
     if(safe_state > 0) {
-        // Si le client qui a fait la demande est le premier du safe state trouve, on
+        // Si le client qui a fait la demande est le premier du safe state trouve, on le deverrouille
         current = first;
         int i = 0;
         while(current != NULL) {
