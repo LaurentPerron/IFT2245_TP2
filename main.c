@@ -939,10 +939,11 @@ void *banker_thread_run() {
             pthread_mutex_unlock(register_mutex);
             continue;
         }
+        printf("call the bankers\n");
         // Quand on a trouver un client on appel le banquier
         call_bankers(customer);
         // Et on passe au prochain
-        customer = customer->next;
+        if (customer->next != NULL) customer = customer->next;
         // Le client est alors retiré de la file
         pthread_mutex_unlock(register_mutex);
     }
