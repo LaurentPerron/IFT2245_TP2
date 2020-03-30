@@ -1,6 +1,6 @@
 
 /**
- * William Bach
+ * William Bach 20130259
  * Laurent Perron 1052137
  */
 
@@ -490,9 +490,6 @@ error_code create_command_chain(char *line, command_head **result) {
                 char *token = strtok(wordPtr, " ");
                 while (token != NULL) {
                     char *arg = malloc(sizeof(char) * (strlen(token)+1));
-                    /* if (NULL == (arg )) {
-                         goto error;
-                     }*/
 
                     strcpy(arg, token);
                     call[copy_index] = arg;
@@ -555,7 +552,6 @@ error_code count_ressources(command_head *head, command *command_block) {
     ressources[index] = count;
 
     command_block->ressources = ressources;
-    //head->max_resources[index] += count;
     return NO_ERROR;
 }
 
@@ -628,7 +624,6 @@ banker_customer *register_command(command_head *head) {
     customer->head = head;
     customer->next = NULL;
     customer->prev = NULL;
-    //customer->depth = 0;
     customer->depth = -1;
     customer->current_resources = (int *)malloc(sizeof(int) * head->max_resources_count);
     if (customer->current_resources == NULL) {
@@ -659,10 +654,8 @@ banker_customer *register_command(command_head *head) {
             free(temp);
             goto error;
         }
-       //temp->depth = depth;
         temp->depth = -1;
 
-        //depth++;
         customer = temp;
     }
 
@@ -745,13 +738,12 @@ int bankers(int *work, int *finish) {
     int **needed = (int **)malloc(sizeof(int *) * n_process);
     int **max = (int **)malloc(sizeof(int *) * n_process);
     int **alloc = (int **)malloc(sizeof(int *) * n_process);
-    int *exec_order = (int *)malloc(sizeof(int) * n_process);
     for(int i = 0; i < n_process; i++) {
         needed[i] = (int *)malloc(sizeof(int) * n_ressources);
         max[i] = (int *)malloc(sizeof(int) * n_ressources);
         alloc[i] = (int *)malloc(sizeof(int) * n_ressources);
     }
-
+    // Banker's algorithm
     current = first;
     for(int i = 0; i < n_process; i++) {
         if(current->depth < 0) { // On saute les commandes qui n'ont pas de demandes a l'etude
@@ -766,7 +758,7 @@ int bankers(int *work, int *finish) {
         }
         current = current->next;
     }
-    int ord = 0;
+
     for(int k = 0; k < n_process; k++) {
         for(int l = 0; l < n_process; l++) {
             if(finish[l] == 0) {
@@ -780,7 +772,6 @@ int bankers(int *work, int *finish) {
                 }
 
                 if(stop == 0) {
-                    exec_order[ord++] = l;
                     finish[l] = 1;
                     for(int n = 0; n < n_ressources; n++) {
                         work[n] += alloc[l][n];
@@ -793,13 +784,13 @@ int bankers(int *work, int *finish) {
     // Safe state found ?
     for(int i = 0; i < n_process; i++) {
         if(finish[i] == 0) {
-            result = -1;
+            result = 0;
             goto end;
         }
     }
 
     // Si un safe state on garanti l'ordre d'execution
-    result = exec_order[0];
+    result = 1;
 
     end:
     for(int j = 0; j < n_process; j++) {
@@ -810,9 +801,8 @@ int bankers(int *work, int *finish) {
     free(alloc);
     free(max);
     free(needed);
-    free(exec_order);
 
-    return result + 1;
+    return result;
 }
 
 /**
@@ -824,7 +814,6 @@ int bankers(int *work, int *finish) {
  * @param customer
  */
 void call_bankers(banker_customer *customer) {
-    //print("into callBanker\n");
     if(customer == NULL) return;
     int safe_state;
     int *finish;
@@ -876,25 +865,8 @@ void call_bankers(banker_customer *customer) {
     }
 
     safe_state = bankers(work, finish);
-    if(safe_state > 0) {
-        // Si le client qui a fait la demande est le premier du safe state trouve, on le deverrouille
-        current = first;
-        int i = 0;
-        while(current != NULL) {
-            if(current->depth < 0) {
-                current = current->next;
-                continue;
-            } else {
-                i++;
-                if(i == safe_state) {
-                    break;
-                }
-            }
-            current = current->next;
-        }
-        if(current == NULL) goto top;
-        if(current->head != customer->head) goto top;
-
+    if(safe_state) {
+        // Si Safe_state on debloque le client
         customer->depth = -1;
         pthread_mutex_unlock(customer->head->mutex);
         free(finish);
@@ -903,7 +875,6 @@ void call_bankers(banker_customer *customer) {
     } else {
         // On retire le
         goto top;
-
     }
     top:
     free(finish);
@@ -939,11 +910,10 @@ void *banker_thread_run() {
             pthread_mutex_unlock(register_mutex);
             continue;
         }
-        printf("call the bankers\n");
         // Quand on a trouver un client on appel le banquier
         call_bankers(customer);
         // Et on passe au prochain
-        if (customer->next != NULL) customer = customer->next;
+        customer = customer->next;
         // Le client est alors retiré de la file
         pthread_mutex_unlock(register_mutex);
     }
