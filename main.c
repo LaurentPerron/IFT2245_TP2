@@ -794,7 +794,7 @@ int bankers(int *work, int *finish) {
     for(int i = 0; i < n_process; i++) {
         if(finish[i] == 0) {
             result = -1;
-            goto end
+            goto end;
         }
     }
 
