@@ -603,7 +603,7 @@ error_code evaluate_whole_chain(command_head *head) {
 // ---------------------------------------------------------------------------------------------------------------------
 
 pthread_t banker_tid;
-static banker_customer *first;
+static banker_customer *first = NULL;
 static pthread_mutex_t *register_mutex = NULL;
 static pthread_mutex_t *available_mutex = NULL;
 // Do not access directly!
@@ -651,6 +651,7 @@ banker_customer *register_command(command_head *head) {
             goto error;
         }
         customer->next = temp;
+        temp->next = NULL;
         temp->head = head;
         temp->prev = customer;
         temp->current_resources = (int *)malloc(sizeof(int) * head->max_resources_count);
