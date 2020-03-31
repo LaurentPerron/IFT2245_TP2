@@ -127,6 +127,7 @@ void freeConfiguration(configuration *config) {
  * @return erreur ou 0.
  */
 error_code readLine(char **out) {
+    if(out == NULL) return ERROR;
     size_t size = 10;                       // size of the char array
     char *line = malloc(sizeof(char) * size);       // initialize a ten-char line
     if (line == NULL) return ERROR;   // if we can't, terminate because of a memory issue
@@ -166,6 +167,7 @@ error_code readLine(char **out) {
  * @return un code d'erreur (ou rien si correct)
  */
 error_code parse_first_line(const char *line) {
+    if(line == NULL) return ERROR;
     char *copy;
     char *first_block;
     char *second_block;
@@ -539,6 +541,7 @@ error_code create_command_chain(char *line, command_head **result) {
  * @return un code d'erreur
  */
 error_code count_ressources(command_head *head, command *command_block) {
+    if(command_block == NULL) return ERROR;
     char *c = command_block->call[0];
     int count = command_block->count;
     unsigned int len;
@@ -561,6 +564,7 @@ error_code count_ressources(command_head *head, command *command_block) {
  * @return un code d'erreur
  */
 error_code evaluate_whole_chain(command_head *head) {
+    if(head == NULL) return ERROR;
     int len = (int)conf->ressources_count;
     head->max_resources_count = len;
     int *max_ressources = (int *)malloc(sizeof(int) * len);
@@ -615,6 +619,7 @@ int stop_banker = 0;
  * @return le pointeur vers le compte client retourné
  */
 banker_customer *register_command(command_head *head) {
+    if(head == NULL) return NULL;
     banker_customer *customer = (banker_customer *) malloc(sizeof(banker_customer));
     if (customer == NULL) {
         free(customer);
@@ -676,6 +681,7 @@ banker_customer *register_command(command_head *head) {
  * @return un code d'erreur
  */
 error_code unregister_command(banker_customer *customer) {
+    if(customer == NULL) return ERROR;
     //le client est le premier de la liste
     if (customer->prev == NULL) {
         //il n'y a qu'un client
@@ -719,6 +725,7 @@ error_code unregister_command(banker_customer *customer) {
  * @return
  */
 int bankers(int *work, int *finish) {
+    if(work == NULL || finish == NULL) return 0;
     //print("into banker\n");
     // 1.
     // Initialize all arrays
@@ -933,6 +940,7 @@ void *banker_thread_run() {
  * @return un code d'erreur
  */
 error_code request_resource(banker_customer *customer, int cmd_depth) {
+    if(customer == NULL) return ERROR;
     // Verifie d'abord si on demande trop de ressources
     if(customer->head->max_resources[0] > conf->file_system_cap || customer->head->max_resources[0] < 0) {
         return ERROR;
@@ -970,6 +978,7 @@ error_code request_resource(banker_customer *customer, int cmd_depth) {
  * @return un code d'erreur.
  * */
 error_code freeCustomers(banker_customer *customer) {
+    if(customer == NULL) return ERROR;
     banker_customer *current = customer;
     banker_customer *next;
     while(current != NULL) {
@@ -988,6 +997,7 @@ error_code freeCustomers(banker_customer *customer) {
  * @return : un code d'erreur
  * */
 error_code freeRessources(banker_customer *customer, int  cmd_depth) {
+    if(customer == NULL) return ERROR;
     banker_customer *current = customer;
     banker_customer *prev;
     pthread_mutex_lock(register_mutex);
