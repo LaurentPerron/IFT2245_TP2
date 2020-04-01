@@ -727,8 +727,6 @@ error_code unregister_command(banker_customer *customer) {
  */
 int bankers(int *work, int *finish) {
     if(work == NULL || finish == NULL) return 0;
-    //print("into banker\n");
-    // 1.
     // Initialize all arrays
     int result;
     int n_process = 0;
@@ -825,26 +823,26 @@ void call_bankers(banker_customer *customer) {
     if(customer == NULL) return;
     int safe_state;
     int *finish;
+    int len = (int)conf->ressources_count;
     command * c = customer->head->command;
     for(int j = 0; j < customer->depth; j++) {
         c = c->next;
     }
-    memcpy(customer->current_resources, c->ressources, sizeof(int) * conf->ressources_count);
+    memcpy(customer->current_resources, c->ressources, sizeof(int) * len);
 
     pthread_mutex_lock(available_mutex);
     // Assignation provisoire des ressources de la commande
-    for(int i = 0; i < conf->ressources_count; i++) {
+    for(int i = 0; i < len; i++) {
         _available[i] -= customer->current_resources[i];
     }
 
     // On ajoute aux ressources du client, celles maintenues par les autres elements de sa ligne de commande
     if(customer->prev != NULL && customer->prev->head == customer->head) {
-        for(int i = 0; i < conf->ressources_count; i++) {
+        for(int i = 0; i < len; i++) {
             customer->current_resources[i] += customer->prev->current_resources[i];
         }
     }
 
-    int len = (int)conf->ressources_count;
     int *work = (int *)malloc(sizeof(int) * len);
     if(work == NULL) goto end;
 
@@ -876,12 +874,12 @@ void call_bankers(banker_customer *customer) {
     if(safe_state) {
         // Si Safe_state on debloque le client
         customer->depth = -1;
-        pthread_mutex_unlock(customer->head->mutex);
         free(finish);
         free(work);
+        pthread_mutex_unlock(customer->head->mutex);
         goto bottom;
     } else {
-        // On retire le
+        // On retire les assignations
         goto top;
     }
     top:
@@ -1147,6 +1145,7 @@ error_code callCommands(banker_customer *customer, command *current, int cmd_dep
             return 0;
         case AND:
             if (ret) return callCommands(customer->next, next, ++cmd_depth);
+            freeRessources(customer, cmd_depth);
             return 0;
         case OR:
             if (ret) {
