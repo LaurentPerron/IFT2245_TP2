@@ -903,16 +903,22 @@ void call_bankers(banker_customer *customer) {
  * @return
  */
 void *banker_thread_run() {
-    banker_customer *customer = first;
+    banker_customer *customer;
+    customer = first;
     while(1) {
         if(stop_banker) break;
-        if (first == NULL) {
+
+        pthread_mutex_lock(register_mutex);
+        if (first == NULL) { // Queue vide
+            customer = first;
+            pthread_mutex_unlock(register_mutex);
             continue;
         }
-        pthread_mutex_lock(register_mutex);
+
         while(customer != NULL && customer->depth < 0) {
             customer = customer->next;
         }
+
         if(customer == NULL) {
             customer = first;
             pthread_mutex_unlock(register_mutex);
